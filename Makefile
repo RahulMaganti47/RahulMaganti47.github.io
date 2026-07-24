@@ -9,7 +9,8 @@
 # One entry per math page: "served.html:source.html". Render always runs
 # (it's cheap and deterministic), which keeps `make clean-math && make math`
 # from silently skipping regeneration.
-MATH_PAGES = writing/synthesis-constrained-diffusion.html:content/writing/synthesis-constrained-diffusion.html
+MATH_PAGES = writing/synthesis-constrained-diffusion.html:content/writing/synthesis-constrained-diffusion.html \
+             writing/homological-algebra-primer.html:content/writing/homological-algebra-primer.html
 
 .PHONY: math serve clean-math
 

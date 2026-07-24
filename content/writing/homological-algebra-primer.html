@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>A Primer on Homological Algebra for Generative Modeling — Rahul Maganti</title>
+  <meta name="description" content="Chain complexes, chain maps, spans, and chain homotopy, built up from linear algebra for people who work on generative models over structured objects — and the precise theorem that shows why the standard machinery is not enough on its own." />
+  <link rel="icon" href="../assets/portrait.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="A Primer on Homological Algebra for Generative Modeling" />
+  <meta property="og:description" content="Chain complexes, chain maps, and the exact point where the standard machinery stops being enough." />
+  <meta property="og:type" content="article" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  </head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav__inner">
+      <a class="nav__brand" href="../index.html">Rahul&nbsp;Maganti<span class="dot">.</span></a>
+      <div class="nav__links">
+        <a href="../index.html">About</a>
+        <a href="../index.html#papers">Papers</a>
+        <a href="index.html" aria-current="page">Writing</a>
+        <span class="nav__sep"></span>
+        <a class="social" href="mailto:you@example.com">Email</a>
+        <a class="social ext" href="https://koshasciences.com">Kosha Sciences</a>
+        <a class="social" href="https://x.com/">X</a>
+        <a class="social" href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+        <a class="social" href="https://scholar.google.com/">Scholar</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main" class="wrap">
+    <article class="article reveal">
+      <a class="backlink" href="index.html">Writing</a>
+      <p class="article__meta">Jul 2026 · Rahul Maganti · ~15 min read</p>
+      <h1 class="article__title">A Primer on Homological Algebra for Generative Modeling</h1>
+      <p class="article__dek">Chain complexes, chain maps, and the exact point where the standard machinery stops being enough — which is also the point where the interesting work starts.</p>
+
+      <div class="prose">
+        <p>Generative models over structured objects — molecules, circuits, meshes, RNA — run into a problem that never comes up when you generate images or text. The same change to an object can be written down in more than one way, and a model that puts probability on actions treats each way as a different event. This post builds up the piece of mathematics that looks like it should fix that, shows how far it gets, and then shows the precise point where it fails.</p>
+
+        <p>That failure is the reason I wanted to write this rather than link a textbook. Chain homotopy is the natural formal answer to "did these two programs do the same thing." It is elegant, it is computable, and over a field it collapses into something much weaker than you would hope. Knowing exactly how it collapses tells you what a working version has to look like. Nothing beyond linear algebra is assumed.</p>
+
+        <p><strong>The one-paragraph version.</strong> A chain complex is a sequence of vector spaces with maps that compose to zero; its homology counts holes. Structured objects hand you one for free. The useful move is to represent a <em>rewrite</em> as a chain map rather than a label, because chain maps compose, so an edit trajectory acquires a well-defined structural action. Chain homotopy is then the natural notion of two rewrites doing the same thing. But over a field, two chain maps are homotopic exactly when they induce the same map on homology — so the entire apparatus tells you nothing beyond Betti numbers. Two RNA chord diagrams with identical homology can bound surfaces of different genus, and homotopy cannot see the difference. Getting further requires the complex to carry structure the boundary maps forget, and the homotopies to be constrained rather than free.</p>
+
+        <nav class="toc" aria-label="Contents">
+          <p class="toc__title">Contents</p>
+          <ol>
+            <li><a href="#sec-1">1 · Events with many names</a></li>
+            <li><a href="#sec-2">2 · Chain complexes</a></li>
+            <li><a href="#sec-3">3 · Chain maps, and why a rewrite should be one</a></li>
+            <li><a href="#sec-4">4 · Spans, for the edits that delete things</a></li>
+            <li><a href="#sec-5">5 · Chain homotopy: when are two rewrites the same?</a></li>
+            <li><a href="#sec-6">6 · The wall</a></li>
+            <li><a href="#sec-7">7 · What a working version needs</a></li>
+            <li><a href="#sec-8">8 · Where this goes</a></li>
+            <li><a href="#references">References</a></li>
+            <li><a href="#cited-as">Cited as</a></li>
+          </ol>
+        </nav>
+
+        <h3 id="sec-1">1 · Events with many names</h3>
+
+        <p>Take a circuit optimizer. Running <em>balance; rewrite; refactor</em> as one compiler pass may land on exactly the netlist that forty local cut replacements in an AIG would reach. Same input, same output, same change. A policy that assigns probability to individual actions sees one event in the first case and forty in the second.</p>
+
+        <p>The same thing happens everywhere structured generation happens. A molecular ring can be assembled bond by bond or inserted whole as a motif. An RNA helix can be emitted as its constituent base pairs or as a single block. A mesh refinement can replace one cell with many. In each case the choice is an artifact of the action vocabulary you happened to pick, not a property of the change itself.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 200" role="img" aria-label="Two paths from the same starting object to the same finished object: one macro rewrite along the top, a long chain of small rewrites along the bottom.">
+            <defs>
+              <marker id="arw-f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,1 L9,5 L0,9 z" fill="#17171a"/>
+              </marker>
+              <marker id="arw-f1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,1 L9,5 L0,9 z" fill="#3b3fb0"/>
+              </marker>
+            </defs>
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <circle cx="62" cy="100" r="21" fill="none" stroke="#17171a" stroke-width="1.5"/>
+              <text x="62" y="105" text-anchor="middle" font-size="14" fill="#17171a">x</text>
+              <circle cx="658" cy="100" r="21" fill="none" stroke="#17171a" stroke-width="1.5"/>
+              <text x="658" y="105" text-anchor="middle" font-size="14" fill="#17171a">y</text>
+
+              <path d="M78,86 C 220,26 500,26 640,84" fill="none" stroke="#3b3fb0" stroke-width="1.8" marker-end="url(#arw-f1a)"/>
+              <text x="360" y="34" text-anchor="middle" font-size="12.5" fill="#2c2f8f" font-weight="600">one pass transaction</text>
+
+              <g stroke="#17171a" stroke-width="1.4" fill="none">
+                <path d="M80,114 L136,132" marker-end="url(#arw-f1)"/>
+                <path d="M166,140 L212,140" marker-end="url(#arw-f1)"/>
+                <path d="M242,140 L288,140" marker-end="url(#arw-f1)"/>
+                <path d="M318,140 L364,140" marker-end="url(#arw-f1)"/>
+                <path d="M446,140 L492,140" marker-end="url(#arw-f1)"/>
+                <path d="M522,140 L568,140" marker-end="url(#arw-f1)"/>
+                <path d="M598,132 L642,114" marker-end="url(#arw-f1)"/>
+              </g>
+              <g fill="#17171a">
+                <circle cx="152" cy="140" r="5"/><circle cx="228" cy="140" r="5"/>
+                <circle cx="304" cy="140" r="5"/><circle cx="380" cy="140" r="5"/>
+                <circle cx="508" cy="140" r="5"/><circle cx="584" cy="140" r="5"/>
+              </g>
+              <text x="413" y="145" text-anchor="middle" font-size="15" fill="#6f6f76" letter-spacing="2">···</text>
+              <text x="360" y="180" text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">forty local rewrites</text>
+            </g>
+          </svg>
+          <figcaption><b class="fignum">Figure 1.</b> One change, two vocabularies. A flat policy assigns rate to each arrow it can see, so the bottom route is charged forty times and the top route once — a difference in how the change was serialized, not in what it did.</figcaption>
+        </figure>
+
+        <p>This costs you twice. Evidence gathered in one rewrite language does not train the equivalent transition in another, so a model trained on base pairs learns nothing directly about helices. And an event with many serializations can accumulate more probability than an event with few, purely because it has more names. Neither is a modeling choice anyone made deliberately; both fall out of attaching probability to actions.</p>
+
+        <p>So the question is what it would take to say that two programs <em>are the same change</em> — a notion of sameness that depends on what was done and not on how it was written. That is a question about structure, and it is the question homological algebra was built to answer.</p>
+
+        <h3 id="sec-2">2 · Chain complexes</h3>
+
+        <p>A <strong>chain complex</strong> over a field is a sequence of vector spaces $C_0, C_1, C_2, \dots$ connected by linear maps that compose to zero.</p>
+
+        <div class="eqn">$$\cdots \longrightarrow C_2 \xrightarrow{\ \partial_2\ } C_1 \xrightarrow{\ \partial_1\ } C_0 \longrightarrow 0, \qquad \partial_{k-1}\,\partial_k = 0 .$$</div>
+
+        <p>Read $C_k$ as the space of formal combinations of $k$-dimensional pieces, and $\partial_k$ as "take the boundary." For a molecular graph, $C_0$ is spanned by atoms, $C_1$ by bonds, and $\partial_1$ sends a bond to the difference of its endpoints. If you also fill in the rings, $C_2$ is spanned by faces and $\partial_2$ sends a face to the sum of the bonds around it. The condition $\partial \partial = 0$ says the boundary of a boundary is empty, which is a fact about shapes before it is an algebraic axiom: walk around the edge of a disc and you return where you started.</p>
+
+        <p>That single condition is what makes the theory work. It says every boundary is a cycle, so the boundaries sit inside the cycles and you can take the quotient.</p>
+
+        <div class="eqn">$$H_k(C) \;=\; \ker \partial_k \,\big/\, \operatorname{im} \partial_{k+1}, \qquad \beta_k \;=\; \dim H_k(C) .$$</div>
+
+        <p>Elements of $\ker \partial_k$ are <em>cycles</em>: things with no boundary, like a closed loop of bonds. Elements of $\operatorname{im} \partial_{k+1}$ are <em>boundaries</em>: cycles that are already filled in by something one dimension up. Homology is the quotient — the cycles that are not filled in — and the Betti number $\beta_k$ counts them. For a molecular graph, $\beta_0$ is the number of connected fragments and $\beta_1$ is the cycle rank: benzene has $\beta_1 = 1$, naphthalene has $\beta_1 = 2$.</p>
+
+        <p>Everything here is finite-dimensional linear algebra. Homology is a rank computation, and over a small finite field it is an exact one — no floating point, no tolerance, and the answer is a certificate rather than an estimate. That is a large part of why this machinery is attractive for generative modeling in the first place: the structural bookkeeping can be exact even when the model on top of it is not.</p>
+
+        <h3 id="sec-3">3 · Chain maps, and why a rewrite should be one</h3>
+
+        <p>So far we have a way to describe a <em>state</em>. The interesting move is to describe a <em>rewrite</em>. Given complexes $C$ and $D$, a <strong>chain map</strong> $f : C \to D$ is a family of linear maps $f_k : C_k \to D_k$ that commutes with the boundary operators.</p>
+
+        <div class="eqn">$$\partial^D_k \, f_k \;=\; f_{k-1} \, \partial^C_k \qquad \text{for every } k .$$</div>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 250" role="img" aria-label="Left: the commuting square defining a chain map. Right: two chain maps f and g with a homotopy H drawn as a diagonal raising degree by one.">
+            <defs>
+              <marker id="arw-f2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,1 L9,5 L0,9 z" fill="#17171a"/>
+              </marker>
+              <marker id="arw-f2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0,1 L9,5 L0,9 z" fill="#3b3fb0"/>
+              </marker>
+            </defs>
+            <g font-family="'IBM Plex Sans', sans-serif" font-size="15" fill="#17171a">
+              <!-- panel A -->
+              <text x="88" y="80" text-anchor="middle">C<tspan dy="4" font-size="10">k</tspan></text>
+              <text x="268" y="80" text-anchor="middle">D<tspan dy="4" font-size="10">k</tspan></text>
+              <text x="88" y="200" text-anchor="middle">C<tspan dy="4" font-size="10">k−1</tspan></text>
+              <text x="268" y="200" text-anchor="middle">D<tspan dy="4" font-size="10">k−1</tspan></text>
+              <g stroke="#17171a" stroke-width="1.4" fill="none">
+                <path d="M112,75 L242,75" marker-end="url(#arw-f2)"/>
+                <path d="M112,195 L242,195" marker-end="url(#arw-f2)"/>
+                <path d="M88,92 L88,176" marker-end="url(#arw-f2)"/>
+                <path d="M268,92 L268,176" marker-end="url(#arw-f2)"/>
+              </g>
+              <text x="177" y="64" text-anchor="middle" font-size="12.5" fill="#2c2c31">f<tspan dy="3" font-size="9">k</tspan></text>
+              <text x="177" y="215" text-anchor="middle" font-size="12.5" fill="#2c2c31">f<tspan dy="3" font-size="9">k−1</tspan></text>
+              <text x="72" y="140" text-anchor="end" font-size="12.5" fill="#2c2c31">∂</text>
+              <text x="284" y="140" font-size="12.5" fill="#2c2c31">∂</text>
+              <text x="177" y="240" text-anchor="middle" font-size="11.5" fill="#6f6f76">the square commutes</text>
+
+              <!-- divider -->
+              <line x1="360" y1="40" x2="360" y2="230" stroke="#e6e4dd" stroke-width="1"/>
+
+              <!-- panel B -->
+              <text x="640" y="72" text-anchor="middle">D<tspan dy="4" font-size="10">k+1</tspan></text>
+              <text x="452" y="172" text-anchor="middle">C<tspan dy="4" font-size="10">k</tspan></text>
+              <text x="640" y="172" text-anchor="middle">D<tspan dy="4" font-size="10">k</tspan></text>
+              <g stroke="#17171a" stroke-width="1.4" fill="none">
+                <path d="M476,161 L612,161" marker-end="url(#arw-f2)"/>
+                <path d="M476,180 L612,180" marker-end="url(#arw-f2)"/>
+                <path d="M640,86 L640,148" marker-end="url(#arw-f2)"/>
+              </g>
+              <path d="M474,155 L610,80" fill="none" stroke="#3b3fb0" stroke-width="1.6" marker-end="url(#arw-f2a)"/>
+              <text x="544" y="152" text-anchor="middle" font-size="12.5" fill="#2c2c31">f</text>
+              <text x="544" y="196" text-anchor="middle" font-size="12.5" fill="#2c2c31">g</text>
+              <text x="656" y="122" font-size="12.5" fill="#2c2c31">∂</text>
+              <text x="520" y="103" text-anchor="middle" font-size="12.5" fill="#2c2f8f" font-weight="600">H<tspan dy="3" font-size="9">k</tspan></text>
+              <text x="556" y="240" text-anchor="middle" font-size="11.5" fill="#6f6f76">a homotopy raises degree by one</text>
+            </g>
+          </svg>
+          <figcaption><b class="fignum">Figure 2.</b> Left: a chain map is a family of maps making every square commute, which is exactly what forces it to send cycles to cycles. Right: a chain homotopy is a diagonal that raises degree by one, and it certifies that two chain maps differ only by a boundary.</figcaption>
+        </figure>
+
+        <p>Commutation is not decoration. It is precisely the condition that makes $f$ send cycles to cycles and boundaries to boundaries, so it descends to a map $H_*(f)$ on homology. Take a cycle $z$ with $\partial^C z = 0$; then $\partial^D f(z) = f(\partial^C z) = 0$, so $f(z)$ is a cycle too. The square is what buys you that.</p>
+
+        <p>The second thing chain maps give you is composition. If a rewrite is a chain map, then a trajectory of rewrites has a composite structural action, computed by multiplying matrices.</p>
+
+        <div class="eqn">$$F_{T} \;=\; f_{T-1} \circ \cdots \circ f_1 \circ f_0 .$$</div>
+
+        <p class="note"><strong>Why this earns its place.</strong> The obvious alternative is to tag each rewrite with how it changed the topology — a label like $\Delta\beta_1 = +1$. That label records that a cycle appeared. It does not record <em>which</em> cycle, where in the object it sits, which attachment sites it touches, or how the next rewrite will act on it. A chain map records all of that, because it is a map rather than a number, and it composes with whatever comes next. If you want to compare two multi-step programs, composability is not optional.</p>
+
+        <p>It is worth being clear about what the matrices are and are not. Writing $f_k$ down requires choosing a basis for each $C_k$ — an ordering of the atoms, an indexing of the bonds. That choice is arbitrary and the matrices change when you change it. The abstract map does not. Everything worth saying at this level of the theory is a statement that survives relabeling, which is exactly the property you want when the whole complaint is that models are sensitive to arbitrary presentation.</p>
+
+        <h3 id="sec-4">4 · Spans, for the edits that delete things</h3>
+
+        <p>Chain maps handle rewrites that add structure. They do not handle deletion, and they do not handle replacement, because there is no sensible map from a complex to one that is missing some of its cells. The standard fix, borrowed from graph rewriting, is to use a <strong>span</strong>: keep an apex $K$ recording the part that survives, with a map into each side.</p>
+
+        <div class="eqn">$$C \;\longleftarrow\; K \;\longrightarrow\; C' , \qquad K \times_D L \;=\; \{\, (k,l) \;:\; b(k) = c(l) \,\} .$$</div>
+
+        <p>The apex is the interface — the cells the rewrite preserves and the boundary relations it must respect on the way through. Spans compose by <em>pullback</em>: given $C \leftarrow K \to D$ and $D \leftarrow L \to E$, the composite apex is the fiber product on the right above, the pairs that agree on the shared middle. Concretely it is a kernel computation in each degree, so it stays inside the same exact linear algebra.</p>
+
+        <p>This matters for a practical reason. Composition of spans is associative, which means a program built from replacements still has a single well-defined structural action no matter how you bracket it. Without spans you would either be unable to express deletion or unable to compose it, and a generative model over edit sequences needs both.</p>
+
+        <h3 id="sec-5">5 · Chain homotopy: when are two rewrites the same?</h3>
+
+        <p>Now the real question. Two programs, $f$ and $g$, both taking $C$ to $D$. When should we call them the same change?</p>
+
+        <p>Equality of matrices is clearly too strict — it is basis-dependent, and two genuinely equivalent programs may differ on cells nobody cares about. What we want is a notion that ignores differences that do not matter structurally. The classical answer is <strong>chain homotopy</strong>: a family of maps $H_k : C_k \to D_{k+1}$ that raises degree by one and satisfies</p>
+
+        <div class="eqn">$$g_k - f_k \;=\; \partial^D_{k+1} H_k \;+\; H_{k-1} \, \partial^C_k .$$</div>
+
+        <p>The shape is strange the first time you see it, so read it on a cycle. If $\partial^C z = 0$, the second term vanishes and</p>
+
+        <div class="eqn">$$g(z) - f(z) \;=\; \partial^D_{k+1} H_k(z) .$$</div>
+
+        <p>The two maps differ, on cycles, by something that is already a boundary — and boundaries are exactly what homology quotients away. So $f$ and $g$ induce the same map on homology. Written $f \simeq g$, homotopy is an equivalence relation, it is compatible with composition, and $H$ is an explicit witness rather than an assertion: you can hand it to someone and they can check it by multiplying matrices.</p>
+
+        <p>This is a genuinely good answer to the question in §1. It is not "these two programs produced the same object," which we already knew was too weak, since two programs can land on the same object while doing structurally different things to it. It is "these two programs act the same way on structure, and here is the certificate." Better still, finding $H$ is a linear solve, so asking whether two programs are equivalent is decidable in the most boring possible way.</p>
+
+        <h3 id="sec-6">6 · The wall</h3>
+
+        <p>Here is the part the textbooks state as a clean classification theorem and generative modeling should read as a wall.</p>
+
+        <p>Over a field, for bounded complexes of finite-dimensional spaces, the implication above runs both ways. Two chain maps are homotopic <em>if and only if</em> they induce the same map on homology.</p>
+
+        <div class="eqn">$$f \simeq g \quad \Longleftrightarrow \quad H_*(f) = H_*(g) .$$</div>
+
+        <p>The reason is a splitting argument. Over a field every subspace has a complement, so each $C_k$ splits into cycles plus a complement, and the cycles split into boundaries plus a copy of homology. Assemble those pieces and the whole complex decomposes:</p>
+
+        <div class="eqn">$$C_\bullet \;\cong\; \big( H_\bullet(C),\, 0 \big) \;\oplus\; \bigoplus_i \big( \cdots \to 0 \to V_i \xrightarrow{\ \mathrm{id}\ } V_i \to 0 \to \cdots \big) .$$</div>
+
+        <p>A complex is isomorphic to its homology carried with zero differential, plus a pile of two-term "disc" pieces that are contractible. Any map involving the disc pieces can be undone by a homotopy, because you are free to build $H$ however you like on those summands. What survives is precisely the action on homology.</p>
+
+        <p>So the homotopy class of $f$ carries exactly the information in $H_*(f)$ and not one bit more. We asked "did these two programs implement the same change," and chain homotopy answered "did they have the same effect on Betti numbers." Those are very different questions, and for structured generation the gap between them is where all the content lives.</p>
+
+        <p>Here is the cheapest example I know. Put four points on a line and connect them in pairs — a chord diagram, which is how RNA secondary structure is usually drawn, with the line as the backbone and each chord as a base pair.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 230" role="img" aria-label="Two chord diagrams on four backbone points. The nested one has chords 1-4 and 2-3 and bounds a genus 0 surface; the crossing one has chords 1-3 and 2-4 and bounds a genus 1 surface. Both have the same Betti numbers.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- nested -->
+              <line x1="70" y1="150" x2="290" y2="150" stroke="#a1a1a8" stroke-width="1.6"/>
+              <path d="M100,150 Q 180,36 260,150" fill="none" stroke="#3b3fb0" stroke-width="1.8"/>
+              <path d="M140,150 Q 180,104 220,150" fill="none" stroke="#3b3fb0" stroke-width="1.8"/>
+              <g fill="#17171a">
+                <circle cx="100" cy="150" r="5"/><circle cx="140" cy="150" r="5"/>
+                <circle cx="220" cy="150" r="5"/><circle cx="260" cy="150" r="5"/>
+              </g>
+              <g font-size="11.5" fill="#6f6f76" text-anchor="middle">
+                <text x="100" y="171">1</text><text x="140" y="171">2</text>
+                <text x="220" y="171">3</text><text x="260" y="171">4</text>
+              </g>
+              <text x="180" y="199" text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">nested</text>
+              <text x="180" y="217" text-anchor="middle" font-size="12" fill="#2c2f8f" font-weight="600">genus 0</text>
+
+              <line x1="360" y1="46" x2="360" y2="200" stroke="#e6e4dd" stroke-width="1"/>
+
+              <!-- crossing -->
+              <line x1="430" y1="150" x2="650" y2="150" stroke="#a1a1a8" stroke-width="1.6"/>
+              <path d="M460,150 Q 520,52 580,150" fill="none" stroke="#3b3fb0" stroke-width="1.8"/>
+              <path d="M500,150 Q 560,52 620,150" fill="none" stroke="#3b3fb0" stroke-width="1.8"/>
+              <g fill="#17171a">
+                <circle cx="460" cy="150" r="5"/><circle cx="500" cy="150" r="5"/>
+                <circle cx="580" cy="150" r="5"/><circle cx="620" cy="150" r="5"/>
+              </g>
+              <g font-size="11.5" fill="#6f6f76" text-anchor="middle">
+                <text x="460" y="171">1</text><text x="500" y="171">2</text>
+                <text x="580" y="171">3</text><text x="620" y="171">4</text>
+              </g>
+              <text x="540" y="199" text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">crossing</text>
+              <text x="540" y="217" text-anchor="middle" font-size="12" fill="#2c2f8f" font-weight="600">genus 1</text>
+            </g>
+          </svg>
+          <figcaption><b class="fignum">Figure 3.</b> Same number of residues, same number of pairs, and identical homology — one component and cycle rank two on both sides. Thicken the backbone to a disc and each chord to a band, and the left diagram bounds a sphere with holes while the right one bounds a torus with holes. Homology cannot tell them apart; the cyclic order of the chord ends can.</figcaption>
+        </figure>
+
+        <p>Both diagrams have four residues, two pairs, one connected component, and cycle rank two. As chain complexes they are isomorphic, so <em>no</em> invariant built from this complex — homology, homotopy class, anything — can separate them. But thicken the backbone into a disc and each chord into a flat band, and you get a surface. The nested diagram gives a genus 0 surface; the crossing diagram gives genus 1. In RNA that distinction is the difference between a plain secondary structure and a pseudoknot, which is a real structural and functional difference, not a bookkeeping one.</p>
+
+        <p>What separates them is the cyclic order in which the chord ends attach around the backbone — data the complex threw away when it recorded only which cells bound which. There is a clean way to compute it: build the mod-2 interlacement matrix $I(D)$, with a one in position $(i,j)$ when exactly one endpoint of chord $j$ lies inside chord $i$, and the genus falls out of a rank.</p>
+
+        <div class="eqn">$$\operatorname{rank}_{\mathbb{F}_2} I(D) \;=\; 2\,g(D) .$$</div>
+
+        <p>For the nested diagram the matrix is zero and the rank is zero. For the crossing diagram it is the two-by-two swap, rank two, genus one. Still exact linear algebra over a finite field — but over a matrix the chain complex does not contain.</p>
+
+        <p>Chemistry gives the same lesson. Three bicyclic skeletons — spiro, fused, and bridged — all have cycle rank two, so $\beta_1$ cannot distinguish them, yet they present completely different ring junctions and completely different synthetic constraints.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 210" role="img" aria-label="Spiro, fused, and bridged bicyclic skeletons drawn side by side, each annotated with cycle rank two.">
+            <g font-family="'IBM Plex Sans', sans-serif" stroke="#17171a" stroke-width="1.6" fill="none">
+              <!-- spiro -->
+              <polygon points="60,105 96,68 132,105 96,142"/>
+              <polygon points="132,105 168,68 204,105 168,142"/>
+              <!-- fused -->
+              <polygon points="360,80 360,130 317,155 274,130 274,80 317,55"/>
+              <polygon points="360,80 403,55 446,80 446,130 403,155 360,130"/>
+              <!-- bridged -->
+              <polygon points="620,58 663,83 663,133 620,158 577,133 577,83"/>
+              <path d="M620,58 L620,158"/>
+            </g>
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <circle cx="132" cy="105" r="5" fill="#3b3fb0" stroke="none"/>
+              <line x1="360" y1="80" x2="360" y2="130" stroke="#3b3fb0" stroke-width="3.2"/>
+              <circle cx="620" cy="108" r="5" fill="#3b3fb0" stroke="none"/>
+              <circle cx="620" cy="58" r="5" fill="#3b3fb0" stroke="none"/>
+              <circle cx="620" cy="158" r="5" fill="#3b3fb0" stroke="none"/>
+              <g text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">
+                <text x="132" y="186">spiro</text><text x="360" y="186">fused</text><text x="620" y="186">bridged</text>
+              </g>
+              <g text-anchor="middle" font-size="11.5" fill="#6f6f76">
+                <text x="132" y="203">shares one atom</text><text x="360" y="203">shares one bond</text><text x="620" y="203">shares a path</text>
+              </g>
+            </g>
+          </svg>
+          <figcaption><b class="fignum">Figure 4.</b> All three have cycle rank two, so $\beta_1$ sees them as the same. The junctions highlighted in blue are what actually differs, and they are what determines whether the skeleton is strained, how it can be made, and what a subsequent edit is allowed to do to it.</figcaption>
+        </figure>
+
+        <p>None of this means homology is wrong. It means homology answers the question it was designed for — how many independent holes are there — and that question is coarser than the one structured generation needs to ask.</p>
+
+        <h3 id="sec-7">7 · What a working version needs</h3>
+
+        <p>The collapse proof is the most useful thing on the page, because it tells you exactly which two assumptions have to break.</p>
+
+        <p><strong>The complex has to remember more.</strong> In the chord example the missing data was concrete: the cyclic order of attachments around the backbone. In general it is the same shape of thing — a filtration coordinate saying when a cell entered, marks distinguishing cells that homology identifies, protected attachment sites a rewrite is forbidden to disturb. None of that changes the boundary maps, so none of it changes homology, which is exactly why it survives the quotient that discards everything else. You are not replacing the complex; you are refusing to throw away the labels.</p>
+
+        <p><strong>The homotopy has to be constrained.</strong> This is the part that actually defeats the theorem. The splitting argument works because you are free to define $H$ however you like on the contractible summands. Take that freedom away — require that $H$ only be supported on cells within some allowed carrier, that it respect the marks, that it not raise the filtration by more than a fixed amount — and the argument stops going through. A constrained homotopy is still a linear solve, just a masked one: same finite field, same exactness, same certificate you can hand to a verifier. But the classification it induces is strictly finer than homology, because the maps that used to be quietly undone by an unrestricted $H$ no longer can be.</p>
+
+        <p class="note"><strong>What this buys.</strong> The point of a finer equivalence is not aesthetic. It is that two programs land in the same class only when they do the same thing <em>subject to the constraints the domain actually cares about</em> — and when they do, a generative model can pool its evidence across them and assign one rate to the class instead of one rate per serialization. That is the whole objective from §1, and it needs an equivalence that is neither too strict (matrix equality) nor too coarse (homology).</p>
+
+        <h3 id="sec-8">8 · Where this goes</h3>
+
+        <p>This is background for something I am working on: discrete flow matching where the transition object is a class of executable rewrite programs rather than a pair of endpoints. The model learns a rate on the class, and a separate conditional step picks a concrete verified program that realizes it, so evidence pools across rewrite languages instead of fragmenting across them. Whether that actually improves sample efficiency and transfer between languages is an empirical question, and it is currently open — I would rather say that plainly than imply otherwise. The mathematics above is the part that is settled, and it is settled in the negative: the standard machinery is not enough, and it fails for a reason specific enough to tell you what to build instead.</p>
+
+        <p>If you want to go deeper on the classical material, Weibel is the standard reference and Hatcher's second chapter is the friendlier entry point. For the surface side of the chord diagrams, Ellis-Monaghan and Moffatt is the book on graphs embedded in surfaces, and the RNA genus story starts with Bon and coauthors.</p>
+
+        <h3 id="references">References</h3>
+        <p class="note" style="border:0; padding:0;">
+          Weibel, C. <em>An Introduction to Homological Algebra.</em> Cambridge University Press, 1994.<br/>
+          Hatcher, A. <em>Algebraic Topology.</em> Cambridge University Press, 2002.<br/>
+          Cohn, M. &amp; Lempel, A. <em>Cycle decomposition by disjoint transpositions.</em> Journal of Combinatorial Theory A, 1972.<br/>
+          Ellis-Monaghan, J. &amp; Moffatt, I. <em>Graphs on Surfaces: Dualities, Polynomials, and Knots.</em> Springer, 2013.<br/>
+          Bon, M., Vernizzi, G., Orland, H. &amp; Zee, A. <em>Topological classification of RNA structures.</em> Journal of Molecular Biology, 2008.<br/>
+          Ehrig, H., Ehrig, K., Prange, U. &amp; Taentzer, G. <em>Fundamentals of Algebraic Graph Transformation.</em> Springer, 2006.<br/>
+          Austin, J., Johnson, D., Ho, J., Tarlow, D. &amp; van den Berg, R. <em>Structured denoising diffusion models in discrete state-spaces.</em> NeurIPS 2021.<br/>
+          Campbell, A., Benton, J., De Bortoli, V., Rainforth, T., Deligiannidis, G. &amp; Doucet, A. <em>A continuous time framework for discrete denoising models.</em> NeurIPS 2022.<br/>
+          Lipman, Y., Chen, R. T. Q., Ben-Hamu, H., Nickel, M. &amp; Le, M. <em>Flow matching for generative modeling.</em> ICLR 2023.<br/>
+          Gat, I., Remez, T., Shaul, N., Kreuk, F., Chen, R. T. Q., Synnaeve, G., Adi, Y. &amp; Lipman, Y. <em>Discrete flow matching.</em> NeurIPS 2024.
+        </p>
+
+        <h3 id="cited-as">Cited as</h3>
+        <p class="note" style="border:0; padding:0 0 10px;">Maganti, Rahul. "A Primer on Homological Algebra for Generative Modeling." <em>rahulmaganti47.github.io</em>, July 2026.</p>
+        <pre class="cite">@misc{maganti2026homalg,
+  title  = {A Primer on Homological Algebra for Generative Modeling},
+  author = {Maganti, Rahul},
+  year   = {2026},
+  url    = {https://rahulmaganti47.github.io/writing/homological-algebra-primer.html}
+}</pre>
+      </div>
+    </article>
+  </main>
+
+  <footer class="wrap foot">
+    <div class="foot__links">
+      <a href="mailto:you@example.com">Email</a>
+      <a href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+      <a href="https://x.com/">X</a>
+      <a href="https://scholar.google.com/">Scholar</a>
+    </div>
+    <small>© 2026 Rahul Maganti</small>
+  </footer>
+</body>
+</html>
