@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The delivery problem everyone is solving is the wrong one — Rahul Maganti</title>
+  <meta name="description" content="Genetic medicine's frontier is delivery. But the field optimizes reach and potency, while the market pays for something else — tolerable, repeatable dosing. That gap is the opportunity." />
+  <link rel="icon" href="../assets/portrait.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="The delivery problem everyone is solving is the wrong one" />
+  <meta property="og:description" content="Genetic medicine's frontier is delivery. But the field optimizes reach and potency, while the market pays for something else — tolerable, repeatable dosing." />
+  <meta property="og:type" content="article" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav__inner">
+      <a class="nav__brand" href="../index.html">Rahul&nbsp;Maganti<span class="dot">.</span></a>
+      <div class="nav__links">
+        <a href="../index.html">About</a>
+        <a href="../index.html#papers">Papers</a>
+        <a href="index.html" aria-current="page">Writing</a>
+        <span class="nav__sep"></span>
+        <a class="social" href="mailto:you@example.com">Email</a>
+        <a class="social ext" href="https://koshasciences.com">Kosha Sciences</a>
+        <a class="social" href="https://x.com/">X</a>
+        <a class="social" href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+        <a class="social" href="https://scholar.google.com/">Scholar</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main" class="wrap">
+    <article class="article reveal">
+      <a class="backlink" href="index.html">Writing</a>
+      <p class="article__meta">Jul 2026 · Rahul Maganti</p>
+      <h1 class="article__title">The delivery problem everyone is solving is the wrong one</h1>
+      <p class="article__dek">Genetic medicine's real frontier is delivery. But the field optimizes reach and potency, while the market quietly pays for something else — tolerable, repeatable dosing. That gap is the whole opportunity.</p>
+
+      <div class="prose">
+        <p>For the last decade, AI in biology has meant designing molecules — predict a structure, generate a binder, propose a small molecule. That work is real. But the molecule was never the hard part of medicine. Getting it to the right cells, at a dose the body will tolerate, more than once, is the hard part. That's delivery, and it's where genetic medicine actually lives or dies.</p>
+
+        <p>Ask anyone what the delivery problem is and you'll get the same answer: reach. Lipid nanoparticles go to the liver, most diseases aren't in the liver, so the game is getting particles to other organs. That framing is everywhere, and I think it's aimed at the wrong axis. Reaching the organ isn't what kills these programs. Reaching it again is.</p>
+
+        <h3>The screen everyone celebrates selects for failure</h3>
+        <p>Start with how the field makes data, because the mistake is baked in there. The state of the art is pooled in-vivo screening: barcode hundreds of formulations with short DNA tags, inject them together, sequence the tissue, and read out where each one went and how much protein it made. It's elegant, and it produces mountains of clean data. But look at what it measures — expression and tropism — next to what actually terminates programs in the clinic.</p>
+
+        <p>An ionizable lipid works by disrupting the endosomal membrane so the payload can escape into the cell. That escape is the dominant potency bottleneck, which is why so much of the field optimizes for it. But the same structural features that make a lipid good at tearing up a membrane make it good at tripping the innate immune system and stressing the liver. Potency and toxicity aren't independent; along the default design axis they move together. So a screen that ranks formulations by potency is quietly enriching for the ones most likely to fail on safety. Patisiran, the first approved LNP–siRNA drug, needs steroid premedication to blunt infusion reactions. The recurring cause of death for systemic LNP programs in Phase I isn't weak expression. It's dose-limiting toxicity.</p>
+
+        <blockquote>
+          <p>You can generate a million perfectly clean data points and have every one of them be silent on the variable that kills the drug.</p>
+        </blockquote>
+
+        <p>That's the trap. The field has mistaken volume of the wrong label for data. A barcoded expression screen cannot, by construction, tell you about therapeutic index, or whether the tenth dose is as tolerable as the first — and those are the things that decide whether a genetic medicine becomes a product.</p>
+
+        <h3>Follow the money, not the roadmap</h3>
+        <p>Now the part that should change how you think about the market. Where has the real commercial value in non-vaccine genetic medicine actually landed? Not on a new organ. The biggest win of the last decade, inclisiran, targets the liver — the "boring" organ everyone already reaches — and it's dosed roughly twice a year. It didn't win on reach or on peak potency. It won on regimen: durable, infrequent, tolerable. The market paid billions for the schedule.</p>
+
+        <p>Then look at the other end. AAV gene therapy's defining weakness is that you essentially cannot re-dose it — neutralizing antibodies shut the door after the first exposure, and that single property caps its entire addressable market. Put those two facts side by side and the signal is hard to miss: the scarce, value-bearing property in this field is re-dosability. It's also exactly what today's LNPs are bad at. Anti-PEG antibodies accelerate clearance of the second dose, lipid accumulates, and immunogenicity climbs with each administration. The whole commercial premise of non-viral genetic medicine — that it serves the big chronic markets AAV can't — is blocked at the re-dosing wall. That's not an exotic-organ problem. It's a tolerability problem, in the organ we already reach.</p>
+
+        <p>So the field is sprinting toward extrahepatic tropism, which is hard and glamorous, while the money has been sitting on the re-dosing axis the whole time — unglamorous, and barely attacked.</p>
+
+        <h3>The obvious fix is a trap</h3>
+        <p>Once you accept that targeting matters, the instinct is to bolt a targeting ligand onto the particle — an antibody that homes to the tissue you want. It can work in a mouse. It's also an economic trap. A conjugated antibody turns a plug-in-any-payload platform into a bespoke, single-target product, with its own biologic to manufacture and its own regulatory file. It adds a protein for the immune system to react to, which makes re-dosing worse, not better. And it forces you to commit to a target before you've earned the right to. A lot of "platform" companies in this space are really selling one product wearing platform clothes. The less elegant path — steering biodistribution through the formulation itself, letting the particle's own surface chemistry decide where it goes — keeps the platform economics and the re-dosability intact. It photographs worse and it's worth more.</p>
+
+        <h3>What this means for building now</h3>
+        <p>Two things line up to make this the moment. The payload went to zero — we can design an mRNA or an editor for almost any target, cheaply — so delivery is now the only thing between these medicines and the diseases they're meant for. And the tools to generate delivery data at scale have finally arrived. The catch, and the opening, is that almost everyone is pointing those tools at the wrong label. They're building bigger and bigger expression datasets. The dataset that matters maps chemistry to therapeutic index and to tolerability across repeat doses — the axis the market actually clears on, and the one no potency screen can produce by construction. The real frontier isn't a better lipid. It's decoupling potency from toxicity, and you can't optimize an axis your data never measured.</p>
+
+        <p>That's the bet I'm making. Designing the molecule was the part the field knew how to be excited about. Getting it to the right place, at a dose you can give again, is the part that decides whether any of it reaches a patient — and it's the part almost everyone is measuring wrong. That's the frontier, and it's why I spend my time on it.</p>
+      </div>
+    </article>
+  </main>
+
+  <footer class="wrap foot">
+    <div class="foot__links">
+      <a href="mailto:you@example.com">Email</a>
+      <a href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+      <a href="https://x.com/">X</a>
+      <a href="https://scholar.google.com/">Scholar</a>
+    </div>
+    <small>© 2026 Rahul Maganti</small>
+  </footer>
+</body>
+</html>
