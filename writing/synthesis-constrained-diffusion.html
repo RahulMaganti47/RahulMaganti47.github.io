@@ -552,6 +552,19 @@
           </table>
         </div>
 
+        <h3 class="sub" id="ablation">Ablation: region-aware noise</h3>
+        <p>To put a number on the claim from §4.2: region-aware noise is what keeps generation valid. Swapping the per-region priors for a single global prior, with everything else held fixed, is the difference between 0% and 8% invalid molecules — and the invalid ones fail in the specific way described there, as allene and cumulene chains (C=C=C=C=C) that a global marginal has no way to rule out. It's a clean demonstration that the improvement comes from the noise model, not from the scaffold constraint doing double duty.</p>
+        <div class="tbl-wrap">
+          <table>
+            <caption>Table 5. Ablating region-aware noise (everything else held fixed).</caption>
+            <thead><tr><th>Configuration</th><th class="num">Invalid</th><th>Dominant failure mode</th></tr></thead>
+            <tbody>
+              <tr><td>Full model</td><td class="num">0%</td><td>—</td></tr>
+              <tr><td>&minus;&nbsp;region-aware noise (global prior)</td><td class="num">8%</td><td>allenes / cumulenes, off-distribution chains</td></tr>
+            </tbody>
+          </table>
+        </div>
+
         <h3 id="sec-8">8 · What this doesn't do</h3>
         <p><strong>It's in silico.</strong> Everything above is scored by LANTERN at <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m55.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em">. Until these lipids are synthesized and measured, the gains are predictions, not results. We're currently making lead candidates for validation in hepatocyte transfection and mouse biodistribution.</p>
         <p><strong>Fixing the scaffold caps diversity.</strong> Guaranteeing synthesizability by freezing the Ugi core means the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade. The principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space — but it is a ceiling, not an escape from one.</p>
