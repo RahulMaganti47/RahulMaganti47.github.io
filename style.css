@@ -331,6 +331,26 @@ section + section { margin-top: clamp(52px, 8vw, 92px); }
 .prose .algo li::marker { color: var(--faint); font-family: var(--mono); font-size: 0.85em; }
 .prose .algo .matheq--display { margin: 0.55em 0; }
 @media (max-width: 640px) { .prose .algo { padding: 16px 18px 18px; } }
+/* subsection headings */
+.article .prose h3.sub { font-family: var(--serif); font-weight: 500; font-size: 1.16rem;
+  color: var(--ink-soft); letter-spacing: -0.01em; margin: 1.8em 0 0.5em; }
+.prose h3, .prose h3.sub { scroll-margin-top: 84px; }
+/* table of contents */
+.prose .toc { background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: var(--r); padding: 18px 26px 20px; margin: 2.2em 0; }
+.prose .toc__title { font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.prose .toc ol { margin: 0; padding-left: 1.4em; }
+.prose .toc ol > li { margin: 0.35em 0; }
+.prose .toc ul { list-style: none; margin: 0.3em 0; padding-left: 0.3em; }
+.prose .toc ul li { margin: 0.25em 0; font-size: 0.95em; }
+.prose .toc ul li::before { content: "– "; color: var(--faint); }
+.prose .toc a { text-decoration: none; color: var(--accent-ink); }
+.prose .toc a:hover { text-decoration: underline; }
+/* citation block */
+.prose pre.cite { background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: var(--r); padding: 14px 18px; overflow-x: auto; font-family: var(--mono);
+  font-size: 0.78rem; line-height: 1.55; color: var(--ink-soft); margin: 0.6em 0 0; }
 .backlink { display: inline-block; margin-bottom: 40px; font-family: var(--mono);
   font-size: 0.76rem; color: var(--muted); text-decoration: none; letter-spacing: 0.04em; }
 .backlink:hover { color: var(--accent-ink); }

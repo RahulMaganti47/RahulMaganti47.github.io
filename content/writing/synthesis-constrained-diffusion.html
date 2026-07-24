@@ -49,7 +49,36 @@
 
         <p><strong>The one-paragraph version.</strong> Ionizable lipids are discovered by enumerating combinatorial libraries; existing machine learning only <em>ranks</em> those libraries. We build the first generative model for ionizable lipids, using discrete diffusion over molecular graphs. The trick is that the combinatorial reaction that makes these lipids fixes part of the molecule deterministically, so we hold that part constant during diffusion and generate only what the chemistry leaves free. Every sample is synthesizable by construction. In our experiments, 99% of generated lipids are chemically valid with an intact scaffold, 62% are novel, and the best candidate has roughly $2\times$ the predicted transfection potency of the training-set mean.</p>
 
-        <h3>1 · What an ionizable lipid is, and why generation is hard</h3>
+        <nav class="toc" aria-label="Contents">
+          <p class="toc__title">Contents</p>
+          <ol>
+            <li><a href="#sec-1">1 · What an ionizable lipid is, and why generation is hard</a></li>
+            <li><a href="#sec-2">2 · Background: discrete diffusion on molecular graphs</a>
+              <ul>
+                <li><a href="#why-diffusion-and-why-discrete">Why diffusion, and why discrete</a></li>
+                <li><a href="#the-training-objective">The training objective</a></li>
+              </ul>
+            </li>
+            <li><a href="#sec-3">3 · The observation: the reaction fixes part of the molecule</a></li>
+            <li><a href="#sec-4">4 · Method</a>
+              <ul>
+                <li><a href="#sec-4-1">4.1 · Fixing the core (scaffold conditioning)</a></li>
+                <li><a href="#sec-4-2">4.2 · Region-aware noise</a></li>
+                <li><a href="#sec-4-3">4.3 · Property conditioning</a></li>
+                <li><a href="#sec-4-4">4.4 · The full sampling loop</a></li>
+              </ul>
+            </li>
+            <li><a href="#sec-5">5 · Training on almost no data</a></li>
+            <li><a href="#sec-6">6 · The generator and the oracle are kept apart</a></li>
+            <li><a href="#sec-7">7 · Results</a></li>
+            <li><a href="#sec-8">8 · What this doesn't do</a></li>
+            <li><a href="#sec-9">9 · Related work</a></li>
+            <li><a href="#references">References</a></li>
+            <li><a href="#cited-as">Cited as</a></li>
+          </ol>
+        </nav>
+
+        <h3 id="sec-1">1 · What an ionizable lipid is, and why generation is hard</h3>
         <p>A lipid nanoparticle (LNP) is the delivery vehicle behind the mRNA COVID vaccines and a growing list of genetic medicines. Its functionally decisive component is the <em>ionizable lipid</em>: it complexes the negatively charged mRNA, and it's the reason the payload escapes the endosome. The chemistry that makes this work is a pKa trick — the lipid is close to neutral at physiological pH ($\sim 7.4$), so it doesn't wreck membranes in circulation, but it protonates in the acidifying endosome, becomes cationic, and drives escape into the cytosol.</p>
 
         <p>The ionizable lipid never works alone. A finished LNP is a four-component formulation — the ionizable lipid, a helper phospholipid, cholesterol, and a PEG-lipid — self-assembled with the RNA at fixed molar ratios, and the particle's behavior depends on that whole recipe and the mixing process, not on the lipid in isolation. But among the four, the ionizable lipid is the one that carries the charge and does the escaping, and small changes to it move potency and tolerability the most. The single number that matters most is its apparent $\mathrm{p}K_\mathrm{a}$: too basic and the particle stays cationic in circulation, where it is cleared quickly and is toxic; too acidic and it never protonates in the endosome to trigger escape. The empirical sweet spot for delivery to the liver sits near 6.5, and where a lipid lands is a matter of head-group and linker chemistry — exactly the part a generator gets to choose.</p>
@@ -99,8 +128,29 @@
 
         <p>The mismatch is concrete. Drug-like training sets like ZINC center on molecules of roughly 300–500 daltons, with short and often aromatic scaffolds and single-digit logP; an ionizable lipid is 700–800 daltons, carries two saturated tails a dozen or more carbons long, and has a logP up in the teens. A model that has only ever seen the former treats the latter as wildly out-of-distribution, and it fails in the two ways above — invalid graphs and unsynthesizable ones — because nothing in its training taught it that a lipid is a specific, makeable kind of object. Everything that follows is about putting that knowledge into the model instead of hoping it emerges.</p>
 
-        <h3>2 · Background: discrete diffusion on molecular graphs</h3>
+        <h3 id="sec-2">2 · Background: discrete diffusion on molecular graphs</h3>
         <p>A molecule is a graph $G = (X, E)$: $n$ atoms with categorical types $X \in \{1,\dots,K\}^n$ (C, N, O, S, …) and bonds with categorical types $E$ (none, single, double, triple, aromatic). Because everything is categorical rather than continuous, we can't add Gaussian noise the way image diffusion does. We use <strong>discrete diffusion</strong> (Austin et al., 2021; Vignac et al., 2023).</p>
+
+        <div class="tbl-wrap">
+          <table>
+            <caption>Notation used throughout.</caption>
+            <thead><tr><th>Symbol</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td>$G = (X, E)$</td><td>molecular graph: atom types $X$, bond types $E$</td></tr>
+              <tr><td>$n,\ K$</td><td>number of atoms; number of categories (atom/bond types)</td></tr>
+              <tr><td>$Q_t$</td><td>single-step forward transition matrix</td></tr>
+              <tr><td>$m,\ m^{(r)}$</td><td>prior (limiting) distribution; region-specific prior for region $r$</td></tr>
+              <tr><td>$\beta_t,\ \bar\alpha_t$</td><td>per-step noise rate; cumulative signal retained to step $t$</td></tr>
+              <tr><td>$f_\theta$</td><td>graph-neural-network denoiser</td></tr>
+              <tr><td>$\mathcal{C}$</td><td>indices of the fixed core (scaffold) atoms and bonds</td></tr>
+              <tr><td>$y,\ w$</td><td>target property (transfection potency); guidance scale</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub" id="why-diffusion-and-why-discrete">Why diffusion, and why discrete</h3>
+        <p>Molecular generation has been tried with most of the generative toolkit: variational autoencoders over SMILES or junction trees (Gómez-Bombarelli et al., 2018; Jin et al., 2018), autoregressive graph models, normalizing flows, and GANs. Diffusion has become the default for graphs because it sidesteps the others' failure modes at once — it needs no fixed generation order (autoregressive models impose an arbitrary atom ordering), no invertibility constraint (flows do), and it trains by denoising rather than by adversarial min-max (GANs are unstable). For a problem where chemical validity and diversity both matter, that combination is hard to beat.</p>
+        <p>The wrinkle is that a molecular graph is <em>categorical</em> — atom types and bond orders are discrete labels, not points in a continuous space — so the Gaussian noise that drives image diffusion has no natural meaning here, and rounding a continuous relaxation back to discrete atoms introduces its own artifacts. Discrete diffusion (Austin et al., 2021) defines the corruption directly on the categorical variables, which is what makes it the right tool.</p>
 
         <p>Take a single categorical variable $x \in \{1,\dots,K\}$ as a one-hot row vector. The forward process corrupts it one step at a time by mixing in a prior $m \in \Delta^{K-1}$ (a distribution over the $K$ categories):</p>
         <div class="eqn">$$q(x_t \mid x_{t-1}) = \mathrm{Cat}\!\left(x_t;\, x_{t-1} Q_t\right), \qquad Q_t = (1-\beta_t)\,I + \beta_t\,\mathbf{1}\,m^{\top}.$$</div>
@@ -159,7 +209,12 @@
           <figcaption><b class="fignum">Figure 2.</b> Discrete graph diffusion. The forward chain independently resamples atom types and bond types toward a prior $m$ until the graph is pure noise; the learned denoiser $f_\theta$ runs the chain backward. Grey marks corrupted variables.</figcaption>
         </figure>
 
-        <h3>3 · The observation: the reaction fixes part of the molecule</h3>
+        <h3 class="sub" id="the-training-objective">The training objective</h3>
+        <p>Like other diffusion models, discrete diffusion is trained to maximize a variational lower bound on the data log-likelihood. Written over timesteps, the bound splits into a reconstruction term, a sum of per-step KL divergences between the true posterior and the model's, and a prior term that is constant in $\theta$:</p>
+        <div class="eqn">$$\mathcal{L}_{\mathrm{vb}} = \mathbb{E}_q\!\left[\, -\log p_\theta(G_0 \mid G_1) \;+\; \sum_{t=2}^{T} \mathrm{KL}\!\big(q(G_{t-1}\mid G_t, G_0)\,\big\|\,p_\theta(G_{t-1}\mid G_t)\big) \;+\; \mathrm{KL}\!\big(q(G_T\mid G_0)\,\big\|\,p(G_T)\big) \,\right].$$</div>
+        <p>Because the denoiser predicts $G_0$ directly and the posterior $q(G_{t-1}\mid G_t, G_0)$ is known in closed form, each KL term reduces to a comparison between two categorical distributions, and in practice the whole objective is optimized as a plain cross-entropy between the predicted clean types and the true ones — the scaffold-masked form of which appears in §4.1. Noise is added on a standard monotone schedule for $\beta_t$ that spends more steps in the low-noise regime, where reconstruction is hardest and most of the model's accuracy is won or lost.</p>
+
+        <h3 id="sec-3">3 · The observation: the reaction fixes part of the molecule</h3>
         <p>Combinatorial lipid libraries are built from multicomponent reactions. We build ours around the <strong>Ugi three-component reaction</strong>, which combines an amine, an aldehyde, and an isocyanide in one pot to form a bis-amide product (Ugi et al., 2000). The mechanism is deterministic where it counts: the same three reactant classes always produce the same <em>scaffold topology</em>. Varying the amine tunes the head; varying the aldehyde and isocyanide tunes the tails; the core bonds are formed by the reaction itself and never move.</p>
 
         <figure class="diagram">
@@ -255,17 +310,17 @@
           <figcaption><b class="fignum">Figure 4.</b> The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
         </figure>
 
-        <h3>4 · Method</h3>
+        <h3 id="sec-4">4 · Method</h3>
         <p>Three modifications turn a generic graph-diffusion model into a lipid-aware one: fixing the core, region-aware noise, and property conditioning.</p>
 
-        <h3>4.1 · Fixing the core (scaffold conditioning)</h3>
+        <h3 id="sec-4-1">4.1 · Fixing the core (scaffold conditioning)</h3>
         <p>Let $\mathcal{C}\subset\{1,\dots,n\}$ be the set of core atom (and bond) indices. We remove them from diffusion in two matching ways. During <em>training</em>, core positions are masked out of the loss — the denoiser is never asked to predict them, so it spends none of its capacity relearning the reaction mechanism. The objective becomes a cross-entropy over the free positions only:</p>
         <div class="eqn">$$\mathcal{L} = \mathbb{E}_{t,\,G_0,\,G_t}\!\left[\ \sum_{i \notin \mathcal{C}} \ell\!\left(f_\theta(G_t, t)_i,\ G_0^{(i)}\right)\right].$$</div>
         <p>During <em>generation</em>, core bond entries are overwritten with the ground-truth scaffold after <strong>every</strong> denoising step, not just the last one, so scaffold corruption can't accumulate through the reverse chain. In the paper we show this restoration is exact under the factorized forward process — because atoms and bonds diffuse independently, clamping the core introduces no approximation into the posterior over the rest of the graph.</p>
 
         <p>Mechanically, "the core" is found by matching the Ugi substructure pattern against each training graph, which labels the invariant atoms and bonds; those indices are $\mathcal{C}$. Holding them fixed while denoising the rest is a form of inpainting — the same move image diffusion uses to fill a masked region while keeping the known pixels. But image inpainting (as in RePaint) is only approximate: because pixels are coupled through convolutions, the known and unknown regions have to be repeatedly re-harmonized or the seam shows. Here the forward process factorizes over atoms and bonds — each is corrupted on its own — so conditioning on the core variables changes nothing about the posterior over the free ones. Clamping the scaffold at every step is therefore exact rather than approximate, which is what lets us apply it throughout the reverse chain without drift.</p>
 
-        <h3>4.2 · Region-aware noise</h3>
+        <h3 id="sec-4-2">4.2 · Region-aware noise</h3>
         <p>This is the piece that matters more than it looks. Standard diffusion corrupts every atom toward one global prior $m$. But an ionizable lipid is chemically lopsided — heads are nitrogen-rich, tails are almost pure carbon — so a single global prior forces the denoiser to fight a mismatch between the noise it sees and the data it must reconstruct. Instead we give each region its own transition matrix with its own stationary distribution $m^{(r)}$:</p>
         <div class="eqn">$$Q_t^{(r)} = (1-\beta_t)\,I + \beta_t\,\mathbf{1}\,\big(m^{(r)}\big)^{\top}, \qquad r \in \{\textsf{HEAD}, \textsf{CORE}, \textsf{TAIL}\}.$$</div>
         <p>Head atoms diffuse toward a nitrogen-enriched prior (28% N versus 8% globally); tail atoms toward a carbon-dominated one (94% C). Each edge inherits the region of its source atom. The reverse posterior stays tractable: for an atom in region $r$,</p>
@@ -304,14 +359,14 @@
 
         <p class="note"><strong>Why this earns its place.</strong> Ablate region-aware noise — use a single uniform prior — and the model produces 8% invalid molecules (versus 0% for the full model) and starts generating <em>allenes and cumulenes</em>: strings of cumulated double bonds like C=C=C=C=C that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't stop this. Without a prior that says "tails are lipophilic alkyl chains," the model wanders into implausible chemistry, because the global marginal can't tell a nitrogen-rich head from a carbon tail.</p>
 
-        <h3>4.3 · Property conditioning</h3>
+        <h3 id="sec-4-3">4.3 · Property conditioning</h3>
         <p>To steer toward activity, we inject a target transfection potency $y$ into the denoiser through <strong>FiLM</strong> layers (Perez et al., 2018), which feature-wise scale and shift the intermediate representations, and we train with <strong>classifier-free guidance</strong> (Ho &amp; Salimans, 2021) by dropping the conditioning signal 15% of the time. At sampling, we mix the conditional and unconditional predictions in logit space (empirically more stable than in probability space):</p>
         <div class="eqn">$$\hat G_0 \ \leftarrow\ f_\theta(G_t, t, \varnothing)\ +\ w\,\big(f_\theta(G_t, t, y) - f_\theta(G_t, t, \varnothing)\big).$$</div>
         <p>The guidance scale $w$ interpolates between unconditional sampling ($w=0$) and aggressive steering toward the target ($w > 1$), trading diversity for on-target potency.</p>
 
         <p>A little more on each piece. A FiLM layer runs the conditioning value — here a single scalar, the target potency — through a small network into a per-channel scale $\gamma$ and shift $\beta$, and applies $\gamma \odot h + \beta$ to the denoiser's hidden features $h$ at each message-passing layer. It is a cheap, expressive way to let the target modulate every part of the network without touching its architecture. Classifier-free guidance then trains one model to do double duty: 15% of the time the conditioning is dropped, so the same weights learn both the conditional $f_\theta(\cdot, y)$ and the unconditional $f_\theta(\cdot, \varnothing)$. At sampling, the guided prediction extrapolates along the direction from unconditional to conditional — geometrically, it reads off "which way makes this more like a high-potency lipid" and takes a larger step in that direction. Larger $w$ presses harder toward the target and narrows the output distribution; that is the diversity-for-fidelity trade, and it's why we report metrics across a sweep of $w$ rather than at one setting.</p>
 
-        <h3>4.4 · The full sampling loop</h3>
+        <h3 id="sec-4-4">4.4 · The full sampling loop</h3>
         <p>Putting it together, generation proceeds in two stages. First, <em>scaffold selection</em>: because these lipids span hundreds of distinct scaffold topologies, we pick one by property-weighted sampling from a library extracted from the training data — scaffolds associated with high-potency molecules are more likely to be drawn. Second, <em>diffusion</em>: run the reverse chain to fill in the free atoms and bonds, applying guidance and restoring the scaffold at each step.</p>
 
         <div class="algo">
@@ -330,7 +385,7 @@
           </ol>
         </div>
 
-        <h3>5 · Training on almost no data</h3>
+        <h3 id="sec-5">5 · Training on almost no data</h3>
         <p>The binding constraint is data: only about 1,100 Ugi-based lipids have measured transfection. You cannot train a graph-diffusion model from scratch on 1,100 graphs. So we use a three-stage curriculum that walks the model from generic chemistry down to lipid activity, unfreezing capabilities as the distribution narrows.</p>
 
         <p>The logic is that the three datasets teach different things at different resolutions, and cheap-but-plentiful data should teach the general skills before scarce-but-precise data teaches the specific ones. Stage 1 (ZINC250k, 250,000 drug-like molecules, ~500 epochs) teaches the grammar of valid chemistry — valences, ring closures, what a parseable molecule even is — with no notion of lipids at all. Stage 2 (the 12,000-molecule AGILE virtual library, ~300 epochs) switches on region-aware noise and scaffold conditioning and shifts the distribution onto lipids, teaching the model what heads and tails look like. Only Stage 3 (the ~1,100 measured lipids, ~300 epochs) introduces potency labels and the FiLM/guidance machinery. Sequencing it this way is also a hedge against catastrophic forgetting: each stage adapts a model that already works rather than training from scratch on data too small to support it, so the general chemical competence learned early is refined instead of overwritten.</p>
@@ -368,13 +423,13 @@
           <figcaption><b class="fignum">Figure 6.</b> The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
         </figure>
 
-        <h3>6 · The generator and the oracle are kept apart</h3>
+        <h3 id="sec-6">6 · The generator and the oracle are kept apart</h3>
         <p>This is the design choice I'd most want a skeptical reader to notice, because it guards against the most common failure mode in model-guided design: a generator that learns to exploit the blind spots of its own scoring function. We score candidates with <strong>LANTERN</strong> (Mehradfar et al., 2025), a graph neural network trained on experimental transfection data that predicts measured transfection potency (mTP) with an $R^2 \approx 0.7$ on held-out lipids. But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1–2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to rank finished samples after the fact.</p>
         <p>The consequence is that the generator can't exploit blind spots in the predictor. It samples from a learned chemical distribution and the predictor grades the output; it never gets to descend the predictor's loss surface and find its adversarial holes. It also makes the oracle swappable — a better predictor, or a batch of real wet-lab measurements, can replace LANTERN without retraining the generative model. Decoupling the two is what keeps the in-silico search honest.</p>
 
         <p>It's worth being precise about the failure this avoids, because it is the default outcome of the more obvious design. If you instead optimize a generator directly against the predictor — reinforcement learning with the predictor as reward, or Bayesian optimization over its surface — the optimizer's incentive is to find wherever the predictor is wrong in an optimistic direction. A predictor trained on ~1,000 noisy measurements has plenty of such holes, and a determined search will land in them, producing molecules the model scores as brilliant and the world scores as ordinary. Keeping the training signal (the data distribution) separate from the evaluation signal (the predictor) removes that incentive by construction: the generator has no gradient into LANTERN's mistakes because it never sees LANTERN's loss surface. The practical dividend is modularity — when we swap LANTERN for wet-lab measurements on the lipids we're now synthesizing, the generator doesn't change at all; only the oracle does.</p>
 
-        <h3>7 · Results</h3>
+        <h3 id="sec-7">7 · Results</h3>
         <p>We generated 100 molecules targeting mTP $=10$ at guidance scale $2.0$ and evaluated them. "Valid" means chemically valid (correct valence, parseable) <em>and</em> containing an intact Ugi scaffold.</p>
 
         <div class="tbl-wrap">
@@ -430,6 +485,25 @@
 
         <p>Across a sweep of seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints understate how different two lipids are, we re-checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95 — structurally distinct, not cosmetic edits.</p>
 
+        <div class="tbl-wrap">
+          <table>
+            <caption>Table 2. Generation across training seeds and guidance scales (each cell aggregates 60 samples). Validity = chemically valid with an intact Ugi scaffold.</caption>
+            <thead><tr><th class="num">Seed</th><th class="num">CFG&nbsp;$w$</th><th class="num">Validity</th><th class="num">Novelty</th><th class="num">Mean&nbsp;mTP</th></tr></thead>
+            <tbody>
+              <tr><td class="num">0</td><td class="num">1.0</td><td class="num">96.7%</td><td class="num">60.4%</td><td class="num">5.54</td></tr>
+              <tr><td class="num">0</td><td class="num">2.0</td><td class="num">93.3%</td><td class="num">60.2%</td><td class="num">5.58</td></tr>
+              <tr><td class="num">0</td><td class="num">3.0</td><td class="num">96.7%</td><td class="num">65.4%</td><td class="num">5.61</td></tr>
+              <tr><td class="num">1</td><td class="num">1.0</td><td class="num">96.7%</td><td class="num">70.2%</td><td class="num">5.04</td></tr>
+              <tr><td class="num">1</td><td class="num">2.0</td><td class="num">93.3%</td><td class="num">63.4%</td><td class="num">5.69</td></tr>
+              <tr><td class="num">1</td><td class="num">3.0</td><td class="num">76.7%</td><td class="num">74.2%</td><td class="num">4.77</td></tr>
+              <tr><td class="num">2</td><td class="num">1.0</td><td class="num">98.3%</td><td class="num">70.6%</td><td class="num">4.62</td></tr>
+              <tr><td class="num">2</td><td class="num">2.0</td><td class="num">98.3%</td><td class="num">60.9%</td><td class="num">5.41</td></tr>
+              <tr><td class="num">2</td><td class="num">3.0</td><td class="num">96.7%</td><td class="num">72.6%</td><td class="num">5.33</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The sweep also shows the guidance trade-off from §4.3 in the data: pushing $w$ up tends to raise novelty (the model wanders further from the training set) at some cost to validity — most visibly at seed 1, $w=3$, where validity drops to 77% while novelty climbs to 74%. We report at $w=2$ as a balance, but nothing here is knife-edge: every setting clears 90% validity except that one, and all keep the scaffold intact.</p>
+
         <p>That fingerprint choice is doing real work, so it's worth unpacking. Exact-match novelty is weak — a one-atom change already counts as new — so what matters is <em>how far</em> each novel molecule sits from its nearest training neighbor. Morgan (circular) fingerprints emphasize local atom environments, which makes any two long-tailed lipids look similar because they share the same repeating methylene groups; by that measure almost nothing looks novel. Atom-Pair fingerprints instead encode the topological distance between pairs of atoms, so they separate lipids by overall architecture rather than by their shared greasy tails. Reading novelty through the stricter, more appropriate lens is what turns "62% not seen before" into the stronger claim that nearly half of those are genuinely different skeletons.</p>
 
         <p>Two analyses I trust more than the headline numbers:</p>
@@ -438,23 +512,81 @@
 
         <p>And the motifs are chemically legible, which is part of why they reassure rather than alarm. A dibutylamine head is a compact, moderately basic tertiary amine — the kind of group that lands the apparent $\mathrm{p}K_\mathrm{a}$ near the escape-competent window; a topological polar surface area around 71 Å² with two hydrogen-bond donors matches the hydrogen-bonding pattern seen in effective ionizable lipids; and C12–C16 tails (the best candidate carries an unsaturated C18) sit squarely in the range that packs into stable particles without being too rigid. None of this was handed to the model as a constraint. Measured against the discriminative baselines on capability rather than on a single number, the gap is categorical: AGILE and LiON predict activity and are synthesizable only by staying inside their libraries, whereas this model generates novel structures, is property-conditioned, and stays synthesizable by construction — it explores beyond the enumeration instead of ranking within it.</p>
 
-        <h3>8 · What this doesn't do</h3>
+        <div class="tbl-wrap">
+          <table>
+            <caption>Table 3. Top 12 generated candidates by predicted mTP. MW in daltons, TPSA in Å², HBD = hydrogen-bond donors.</caption>
+            <thead><tr><th class="num">Rank</th><th class="num">mTP</th><th class="num">MW</th><th class="num">LogP</th><th class="num">TPSA</th><th class="num">HBD</th><th>Novel</th></tr></thead>
+            <tbody>
+              <tr><td class="num">1</td><td class="num">10.55</td><td class="num">790</td><td class="num">14.2</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">2</td><td class="num">9.56</td><td class="num">694</td><td class="num">11.7</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">3</td><td class="num">9.01</td><td class="num">788</td><td class="num">13.6</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">4</td><td class="num">8.58</td><td class="num">622</td><td class="num">9.5</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">5</td><td class="num">8.18</td><td class="num">638</td><td class="num">10.0</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">6</td><td class="num">8.00</td><td class="num">708</td><td class="num">11.9</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">7</td><td class="num">7.89</td><td class="num">706</td><td class="num">11.9</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">8</td><td class="num">7.87</td><td class="num">547</td><td class="num">8.2</td><td class="num">96</td><td class="num">3</td><td>yes</td></tr>
+              <tr><td class="num">9</td><td class="num">7.83</td><td class="num">743</td><td class="num">13.7</td><td class="num">96</td><td class="num">3</td><td>yes</td></tr>
+              <tr><td class="num">10</td><td class="num">7.81</td><td class="num">662</td><td class="num">11.1</td><td class="num">71</td><td class="num">2</td><td>yes</td></tr>
+              <tr><td class="num">11</td><td class="num">7.70</td><td class="num">706</td><td class="num">11.8</td><td class="num">71</td><td class="num">2</td><td>no</td></tr>
+              <tr><td class="num">12</td><td class="num">7.64</td><td class="num">741</td><td class="num">13.5</td><td class="num">96</td><td class="num">3</td><td>yes</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tbl-wrap">
+          <table>
+            <caption>Table 4. Capability comparison with the discriminative baselines.</caption>
+            <thead><tr><th>Capability</th><th>AGILE</th><th>LiON</th><th>This work</th></tr></thead>
+            <tbody>
+              <tr><td>Predict activity</td><td>yes</td><td>yes</td><td>yes</td></tr>
+              <tr><td>Generate novel structures</td><td>no</td><td>no</td><td><strong>yes</strong></td></tr>
+              <tr><td>Guaranteed synthesizability</td><td>library</td><td>library</td><td><strong>by construction</strong></td></tr>
+              <tr><td>Property-conditioned</td><td>no</td><td>no</td><td><strong>yes</strong></td></tr>
+              <tr><td>Explore beyond enumeration</td><td>no</td><td>no</td><td><strong>yes</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="sec-8">8 · What this doesn't do</h3>
         <p><strong>It's in silico.</strong> Everything above is scored by LANTERN at $R^2 \approx 0.7$. Until these lipids are synthesized and measured, the gains are predictions, not results. We're currently making lead candidates for validation in hepatocyte transfection and mouse biodistribution.</p>
         <p><strong>Fixing the scaffold caps diversity.</strong> Guaranteeing synthesizability by freezing the Ugi core means the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade. The principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space — but it is a ceiling, not an escape from one.</p>
         <p><strong>In vitro ≠ in vivo.</strong> Transfection in a dish correlates imperfectly with delivery in an animal, which depends on formulation, biodistribution, and immunogenicity the model never sees. No in-silico oracle escapes that gap; it only narrows it.</p>
         <p>The path forward is the loop that makes any of this real: generate, synthesize the top hits, measure them, and feed the measurements back as new conditioning data — active learning rather than one-shot generation — plus multiple scaffold types and multi-property conditioning on pKa, logP, and clearance so the objective is more than potency. But the core claim already stands: if you constrain a generative model to the chemistry a reaction actually permits, you get novelty and synthesizability at the same time, instead of trading one against the other.</p>
 
-        <h3>References</h3>
+        <h3 id="sec-9">9 · Related work</h3>
+        <p><strong>Discriminative models for LNPs.</strong> The closest prior work predicts activity for pre-enumerated lipids. AGILE (Xu et al., 2024) and LiON (Witten et al., 2025) train neural networks to rank library candidates by transfection efficiency, and LANTERN (Mehradfar et al., 2025) — the oracle we borrow for evaluation — predicts transfection potency from structure. All three are bounded by their libraries; none propose new molecules. Our contribution is orthogonal to theirs: a better predictor makes a better oracle, but only a generator can leave the library.</p>
+        <p><strong>Generative models for molecules.</strong> On the modeling side we build on discrete graph diffusion — D3PM (Austin et al., 2021) and DiGress (Vignac et al., 2023) — with classifier-free guidance (Ho &amp; Salimans, 2021) and FiLM conditioning (Perez et al., 2018). The VAE and junction-tree generators (Gómez-Bombarelli et al., 2018; Jin et al., 2018) established the lineage; the scaffold-fixing trick is closest in spirit to diffusion inpainting (Lugmayr et al., 2022), made exact here by the factorized forward process rather than approximated by resampling.</p>
+        <p><strong>Generative models for lipids.</strong> Two recent efforts target ionizable lipids specifically, both by searching over building blocks: a Monte-Carlo tree search over fragment libraries (Zhao et al., 2024) and a building-block DAG generator (Ou et al., 2024). Because they compose known fragments, they inherit the enumeration bottleneck they set out to escape. Learning the distribution of structures directly — while constraining generation to a reaction's makeable space — is what separates the approach here, and it is why synthesizability can be a guarantee instead of a fragment vocabulary.</p>
+
+        <h3 id="references">References</h3>
         <p class="note" style="border:0; padding:0;">
-          Austin et al. <em>Structured denoising diffusion models in discrete state-spaces.</em> NeurIPS 2021.<br/>
+          Austin, Johnson, Ho, Tarlow &amp; van den Berg. <em>Structured denoising diffusion models in discrete state-spaces.</em> NeurIPS 2021.<br/>
           Vignac et al. <em>DiGress: discrete denoising diffusion for graph generation.</em> ICLR 2023.<br/>
           Ho &amp; Salimans. <em>Classifier-free diffusion guidance.</em> NeurIPS Workshop 2021.<br/>
-          Perez et al. <em>FiLM: visual reasoning with a general conditioning layer.</em> AAAI 2018.<br/>
+          Lugmayr et al. <em>RePaint: inpainting using denoising diffusion probabilistic models.</em> CVPR 2022.<br/>
+          Perez, Strub, de Vries, Dumoulin &amp; Courville. <em>FiLM: visual reasoning with a general conditioning layer.</em> AAAI 2018.<br/>
+          Gómez-Bombarelli et al. <em>Automatic chemical design using a data-driven continuous representation of molecules.</em> ACS Central Science, 2018.<br/>
+          Jin, Barzilay &amp; Jaakkola. <em>Junction tree variational autoencoder for molecular graph generation.</em> ICML 2018.<br/>
           Ugi et al. <em>Multicomponent reactions in organic chemistry.</em> Angew. Chem. Int. Ed., 2000.<br/>
+          Coley et al. <em>A robotic platform for flow synthesis of organic compounds informed by AI planning.</em> Science, 2019.<br/>
+          Sterling &amp; Irwin. <em>ZINC 15 — ligand discovery for everyone.</em> J. Chem. Inf. Model., 2015.<br/>
+          Cullis &amp; Hope. <em>Lipid nanoparticle systems for enabling gene therapies.</em> Molecular Therapy, 2017.<br/>
           Xu et al. <em>AGILE: a deep-learning approach to accelerate LNP development for mRNA delivery.</em> Nature Communications, 2024.<br/>
+          Witten et al. <em>Artificial intelligence-guided design of lipid nanoparticles for pulmonary gene therapy.</em> Nature Biotechnology, 2025.<br/>
           Mehradfar et al. <em>LANTERN: a machine-learning framework for LNP transfection-efficiency prediction.</em> arXiv:2507.03209, 2025.<br/>
+          Ou et al. <em>A deep generative model for the design of synthesizable ionizable lipids.</em> NeurIPS Workshop, 2024 (arXiv:2412.00928).<br/>
+          Zhao et al. <em>Generative model for synthesizing ionizable lipids: a Monte Carlo tree search approach.</em> NeurIPS Workshop, 2024 (arXiv:2412.00807).<br/>
           Maganti, Maganti &amp; Alameh. <em>Synthesis-constrained discrete diffusion for ionizable lipid generation.</em> 2026.
         </p>
+
+        <h3 id="cited-as">Cited as</h3>
+        <p class="note" style="border:0; padding:0 0 10px;">Maganti, Rahul. "Constrain, then generate: a diffusion model for ionizable lipids." <em>rahulmaganti47.github.io</em>, July 2026.</p>
+        <pre class="cite">@misc{maganti2026constrain,
+  title  = {Constrain, then generate: a diffusion model for ionizable lipids},
+  author = {Maganti, Rahul},
+  year   = {2026},
+  url    = {https://rahulmaganti47.github.io/writing/synthesis-constrained-diffusion.html}
+}</pre>
       </div>
     </article>
   </main>
