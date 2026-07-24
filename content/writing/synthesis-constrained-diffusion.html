@@ -152,6 +152,75 @@
         <h3>3 · The observation: the reaction fixes part of the molecule</h3>
         <p>Combinatorial lipid libraries are built from multicomponent reactions. Our proof of concept uses the <strong>Ugi three-component reaction</strong>, which combines an amine, an aldehyde, and an isocyanide in one pot to form a bis-amide product (Ugi et al., 2000). The mechanism is deterministic where it counts: the same three reactant classes always produce the same <em>scaffold topology</em>. Varying the amine tunes the head; varying the aldehyde and isocyanide tunes the tails; the core bonds are formed by the reaction itself and never move.</p>
 
+        <figure class="diagram">
+          <svg viewBox="0 0 720 300" role="img" aria-label="The Ugi three-component reaction: an amine, an aldehyde, and an isocyanide combine in one pot to form a bis-amide lipid whose core bonds are fixed by the reaction.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- reactants -->
+              <text x="24" y="60" font-size="13" font-weight="600" fill="#2c2f8f">H&#8322;N</text>
+              <line x1="58" y1="55" x2="84" y2="55" stroke="#17171a" stroke-width="1.4"/>
+              <text x="88" y="60" font-size="13" fill="#17171a">R&#8321;</text>
+              <text x="24" y="80" font-size="11" fill="#6f6f76">amine &#8594; head</text>
+
+              <text x="95" y="114" font-size="18" fill="#a1a1a8" text-anchor="middle">+</text>
+
+              <text x="24" y="150" font-size="13" fill="#17171a">R&#8322;</text>
+              <line x1="42" y1="145" x2="66" y2="145" stroke="#17171a" stroke-width="1.4"/>
+              <text x="70" y="150" font-size="13" fill="#17171a">CHO</text>
+              <text x="24" y="170" font-size="11" fill="#6f6f76">aldehyde &#8594; tail</text>
+
+              <text x="95" y="194" font-size="18" fill="#a1a1a8" text-anchor="middle">+</text>
+
+              <text x="24" y="230" font-size="13" fill="#17171a">R&#8323;</text>
+              <line x1="42" y1="225" x2="66" y2="225" stroke="#17171a" stroke-width="1.4"/>
+              <text x="70" y="230" font-size="13" fill="#17171a">N&#8801;C</text>
+              <text x="24" y="250" font-size="11" fill="#6f6f76">isocyanide &#8594; tail</text>
+
+              <!-- arrow -->
+              <line x1="188" y1="145" x2="322" y2="145" stroke="#6f6f76" stroke-width="1.2"/>
+              <path d="M322,145 l-9,-4.5 l0,9 z" fill="#6f6f76"/>
+              <text x="255" y="133" font-size="12" fill="#2c2c31" text-anchor="middle" font-weight="600">Ugi 3-CR</text>
+              <text x="255" y="162" font-size="11" fill="#6f6f76" text-anchor="middle">one pot</text>
+
+              <!-- product: core wash -->
+              <rect x="405" y="96" width="150" height="106" rx="10" fill="#3b3fb0" fill-opacity="0.07"/>
+              <!-- head -->
+              <polyline points="372,110 392,124 372,138" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <line x1="392" y1="124" x2="426" y2="143" stroke="#17171a" stroke-width="1.4"/>
+              <text x="358" y="100" font-size="11" fill="#2c2f8f">head (amine)</text>
+              <!-- central N -->
+              <circle cx="430" cy="145" r="6.5" fill="#3b3fb0"/>
+              <text x="430" y="148.5" font-size="9" font-weight="600" fill="#fff" text-anchor="middle">N</text>
+              <!-- core bonds (accent) -->
+              <line x1="437" y1="145" x2="470" y2="145" stroke="#3b3fb0" stroke-width="3"/>
+              <line x1="470" y1="145" x2="500" y2="122" stroke="#3b3fb0" stroke-width="3"/>
+              <line x1="470" y1="145" x2="500" y2="168" stroke="#3b3fb0" stroke-width="3"/>
+              <line x1="500" y1="122" x2="535" y2="122" stroke="#3b3fb0" stroke-width="3"/>
+              <line x1="500" y1="168" x2="535" y2="168" stroke="#3b3fb0" stroke-width="3"/>
+              <circle cx="470" cy="145" r="4" fill="#3b3fb0"/>
+              <circle cx="500" cy="122" r="4" fill="#3b3fb0"/>
+              <circle cx="500" cy="168" r="4" fill="#3b3fb0"/>
+              <circle cx="535" cy="122" r="4" fill="#3b3fb0"/>
+              <circle cx="535" cy="168" r="4" fill="#3b3fb0"/>
+              <!-- carbonyl O's (double bond) -->
+              <line x1="497" y1="120" x2="497" y2="104" stroke="#3b3fb0" stroke-width="1.4"/>
+              <line x1="503" y1="120" x2="503" y2="104" stroke="#3b3fb0" stroke-width="1.4"/>
+              <text x="500" y="100" font-size="10" fill="#2c2f8f" text-anchor="middle">O</text>
+              <line x1="497" y1="170" x2="497" y2="186" stroke="#3b3fb0" stroke-width="1.4"/>
+              <line x1="503" y1="170" x2="503" y2="186" stroke="#3b3fb0" stroke-width="1.4"/>
+              <text x="500" y="197" font-size="10" fill="#2c2f8f" text-anchor="middle">O</text>
+              <!-- tails (ink) -->
+              <polyline points="535,122 560,110 585,120 610,108 635,118 660,106" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <polyline points="535,168 560,180 585,170 610,182 635,172 660,184" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <text x="668" y="110" font-size="11" fill="#6f6f76">tail</text>
+              <text x="668" y="188" font-size="11" fill="#6f6f76">tail</text>
+              <!-- core bracket -->
+              <path d="M410,214 L410,224 L550,224 L550,214" fill="none" stroke="#3b3fb0" stroke-width="1"/>
+              <text x="480" y="242" font-size="12" fill="#2c2f8f" text-anchor="middle" font-weight="600">core &#183; bis-amide, fixed by the reaction</text>
+            </g>
+          </svg>
+          <figcaption>Figure 3. The Ugi three-component reaction. Choosing the amine, aldehyde, and isocyanide sets the head and the two tails, while the reaction mechanism always forms the same bis-amide core (highlighted). Because that core is a fixed invariant, the model only ever generates the head and tails — it never has to learn the scaffold.</figcaption>
+        </figure>
+
         <p>Most generative approaches treat that determinism as something to rediscover from data. We treat it as free information. The Ugi core bonds are not statistical regularities to be learned — they're mechanistic invariants. So we take them out of the generative problem entirely. Formally, we define a scaffold as four things: the number of atoms $n$ (typically 40–49 for these lipids), the bond topology, a region assignment $r:\{1,\dots,n\}\to\{\textsf{HEAD}, \textsf{CORE}, \textsf{TAIL}_1, \textsf{TAIL}_2\}$, and the core bond types. Diffusion then only has to fill in atom types and the non-core bonds.</p>
 
         <figure class="diagram">
@@ -169,7 +238,7 @@
               <text x="0" y="128" font-size="11.5" fill="#6f6f76">Scaffold conditioning turns "generate, then filter for synthesizability" into "constrain, then generate."</text>
             </g>
           </svg>
-          <figcaption>Figure 3. The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
+          <figcaption>Figure 4. The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
         </figure>
 
         <h3>4 · Method</h3>
@@ -212,7 +281,7 @@
               <text x="555" y="186" text-anchor="middle" font-size="10.5" fill="#6f6f76">(94% carbon)</text>
             </g>
           </svg>
-          <figcaption>Figure 4. Region-specific priors. Heads diffuse toward a nitrogen-rich distribution, tails toward an almost purely carbon one, versus a single 8%-nitrogen global prior. The denoiser inherits the right chemistry for each substructure instead of averaging it away.</figcaption>
+          <figcaption>Figure 5. Region-specific priors. Heads diffuse toward a nitrogen-rich distribution, tails toward an almost purely carbon one, versus a single 8%-nitrogen global prior. The denoiser inherits the right chemistry for each substructure instead of averaging it away.</figcaption>
         </figure>
 
         <p class="note"><strong>Why this earns its place.</strong> Ablate region-aware noise — use a single uniform prior — and the model produces 8% invalid molecules (versus 0% for the full model) and starts generating <em>allenes and cumulenes</em>: strings of cumulated double bonds like C=C=C=C=C that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't stop this. Without a prior that says "tails are lipophilic alkyl chains," the model wanders into implausible chemistry, because the global marginal can't tell a nitrogen-rich head from a carbon tail.</p>
@@ -271,7 +340,7 @@
               <text x="360" y="176" text-anchor="middle" font-size="11.5" fill="#6f6f76">distribution narrows, data shrinks 250K → 12K → 1.1K, only the last stage sees potency labels →</text>
             </g>
           </svg>
-          <figcaption>Figure 5. The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
+          <figcaption>Figure 6. The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
         </figure>
 
         <h3>6 · The generator and the oracle are kept apart</h3>
@@ -329,7 +398,7 @@
               <text x="600" y="270" text-anchor="middle" font-size="12" fill="#2c2c31">best candidate</text>
             </g>
           </svg>
-          <figcaption>Figure 6. Predicted transfection potency. The best generated candidate (10.55) roughly doubles the training-set mean (4.85) and reaches the target of 10 — in silico, under a predictor with $R^2 \approx 0.7$.</figcaption>
+          <figcaption>Figure 7. Predicted transfection potency. The best generated candidate (10.55) roughly doubles the training-set mean (4.85) and reaches the target of 10 — in silico, under a predictor with $R^2 \approx 0.7$.</figcaption>
         </figure>
 
         <p>Across a sweep of seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints understate how different two lipids are, we re-checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95 — structurally distinct, not cosmetic edits.</p>
