@@ -24,6 +24,12 @@ math:
 serve:
 	python3 -m http.server 8080 --bind 127.0.0.1
 
+# Publish the CURRENT branch to the shareable staging site
+# (https://rahulmaganti47.github.io/preview/). Does NOT touch the live site,
+# which is served from master of the RahulMaganti47.github.io repo.
+preview:
+	git push -f preview HEAD:main
+
 # Remove all generated equation SVGs (regenerate with `make math`).
 clean-math:
 	rm -f assets/math/*.svg
