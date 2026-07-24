@@ -4,18 +4,28 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Constrain, then generate — Rahul Maganti</title>
-  <meta name="description" content="A technical walkthrough of our paper on synthesis-constrained discrete diffusion for ionizable lipids: fixing the reaction scaffold during diffusion so every generated lipid is synthesizable by construction." />
+  <meta name="description" content="A technical deep dive on synthesis-constrained discrete diffusion for ionizable lipids: the math of discrete graph diffusion, scaffold conditioning, region-aware noise, and how every generated lipid stays synthesizable by construction." />
   <link rel="icon" href="../assets/portrait.svg" />
 
   <!-- Open Graph -->
   <meta property="og:title" content="Constrain, then generate: a diffusion model for ionizable lipids" />
-  <meta property="og:description" content="Fixing the Ugi reaction scaffold throughout discrete diffusion so every generated ionizable lipid is synthesizable by construction — a walkthrough of our GEM 2026 paper." />
+  <meta property="og:description" content="The math and the diagrams behind synthesis-constrained discrete diffusion for ionizable lipids — a deep dive on our GEM 2026 paper." />
   <meta property="og:type" content="article" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../style.css" />
+
+  <!-- Math -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] },
+      svg: { fontCache: 'global' },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script" async></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -40,73 +50,251 @@
   <main id="main" class="wrap">
     <article class="article reveal">
       <a class="backlink" href="index.html">Writing</a>
-      <p class="article__meta">Jul 2026 · Rahul Maganti</p>
+      <p class="article__meta">Jul 2026 · Rahul Maganti · ~20 min read</p>
       <h1 class="article__title">Constrain, then generate: a diffusion model for ionizable lipids</h1>
-      <p class="article__dek">A walkthrough of our paper on synthesis-constrained discrete diffusion — how we fix the reaction scaffold throughout the diffusion process so every ionizable lipid the model draws can actually be made.</p>
+      <p class="article__dek">A deep dive on synthesis-constrained discrete diffusion — the math of diffusing over molecular graphs, why we freeze the reaction scaffold, how region-aware noise fixes the chemistry, and what came out the other side.</p>
 
       <div class="prose">
-        <p>I've argued twice now that <a href="why-delivery-is-the-frontier.html">delivery is the real bottleneck</a> in genetic medicine and that <a href="generating-lipids-not-molecules.html">generating lipids is harder than pointing a model at them</a>. This post is the concrete version of the second argument: what we actually built. It's a walkthrough of <em>Synthesis-Constrained Discrete Diffusion for Ionizable Lipid Generation</em> (with Rohin Maganti and Mohamad-Gabriel Alameh), and it's meant to be read as the method, not the marketing.</p>
+        <p>This is the technical companion to two earlier essays — one arguing that <a href="why-delivery-is-the-frontier.html">delivery is the real bottleneck</a> in genetic medicine, one arguing that <a href="generating-lipids-not-molecules.html">generating lipids is harder than pointing a model at them</a>. Here I want to show the machinery: what we actually built, with the equations and the failure modes. It's a walkthrough of <em>Synthesis-Constrained Discrete Diffusion for Ionizable Lipid Generation</em> (with Rohin Maganti and Mohamad-Gabriel Alameh).</p>
 
-        <p>The one-line version: instead of generating a lipid and then hoping it's synthesizable, we fix the part of the molecule that a real reaction determines, and let a diffusion model fill in the rest. Every sample is makeable by construction. On our proof of concept, 99% of generated lipids are chemically valid with an intact reaction scaffold, 62% are novel, and the top candidate has roughly twice the predicted transfection potency of the training-set mean.</p>
+        <p><strong>The one-paragraph version.</strong> Ionizable lipids are discovered by enumerating combinatorial libraries; existing machine learning only <em>ranks</em> those libraries. We build the first generative model for ionizable lipids, using discrete diffusion over molecular graphs. The trick is that the combinatorial reaction that makes these lipids fixes part of the molecule deterministically, so we hold that part constant during diffusion and generate only what the chemistry leaves free. Every sample is synthesizable by construction. On our proof of concept, 99% of generated lipids are chemically valid with an intact scaffold, 62% are novel, and the best candidate has roughly $2\times$ the predicted transfection potency of the training-set mean.</p>
 
-        <h3>The setup</h3>
-        <p>An ionizable lipid is the component of a lipid nanoparticle that binds the mRNA and gets it into the cell — neutral in the blood, protonated in the acidifying endosome, which is what drives escape. Structurally it's three things: a nitrogen-containing head, lipophilic tails, and a linker region joining them. Today these are discovered by enumerating combinatorial libraries and screening them, and the machine learning that's been bolted onto that is <em>discriminative</em>: train a predictor, rank the library. Ranking is bounded by whatever someone already drew. We wanted a model that proposes lipids nobody has enumerated — which means generation, and generation is where the naive approach falls apart.</p>
+        <h3>1 · What an ionizable lipid is, and why generation is hard</h3>
+        <p>A lipid nanoparticle (LNP) is the delivery vehicle behind the mRNA COVID vaccines and a growing list of genetic medicines. Its functionally decisive component is the <em>ionizable lipid</em>: it complexes the negatively charged mRNA, and it's the reason the payload escapes the endosome. The chemistry that makes this work is a pKa trick — the lipid is close to neutral at physiological pH ($\sim 7.4$), so it doesn't wreck membranes in circulation, but it protonates in the acidifying endosome, becomes cationic, and drives escape into the cytosol.</p>
 
-        <p>Take a generative model trained on drug-like molecules and aim it at lipids, and it produces two failure modes: molecules that are chemically invalid, and molecules that are valid but unsynthesizable. Lipids have their own grammar — tertiary-amine heads, long branched carbon tails, ester and amide linkages — that looks nothing like the drug-like distributions these models are trained on. So the interesting question isn't which architecture; it's how to build the constraints of real lipid chemistry into the generator itself.</p>
+        <p>Structurally, an ionizable lipid has three kinds of region: a nitrogen-containing <strong>head</strong>, two lipophilic <strong>tails</strong>, and the <strong>core</strong> (linker) that joins them. Those regions have very different chemistry, and that difference turns out to be the whole game.</p>
 
-        <h3>The key observation</h3>
-        <p>The observation the method rests on is that combinatorial lipid chemistry is <em>deterministic where it matters</em>. Most of these libraries are built from multicomponent reactions — in our proof of concept, the Ugi three-component reaction, which combines an amine, an aldehyde, and an isocyanide in one pot to form a bis-amide product. The reaction mechanism fixes the connectivity of the core: the same three reactants always yield the same scaffold topology. Varying the amine changes the head; varying the aldehyde and isocyanide changes the tails; the core bonds are set by the reaction and never move.</p>
+        <figure class="diagram">
+          <svg viewBox="0 0 720 210" role="img" aria-label="Anatomy of an ionizable lipid: nitrogen-rich head, a fixed core, and two carbon-rich tails.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- head -->
+              <line x1="92" y1="88" x2="118" y2="105" stroke="#17171a" stroke-width="1.4"/>
+              <line x1="92" y1="122" x2="118" y2="105" stroke="#17171a" stroke-width="1.4"/>
+              <circle cx="88" cy="84" r="3.4" fill="#17171a"/>
+              <circle cx="88" cy="126" r="3.4" fill="#17171a"/>
+              <circle cx="122" cy="105" r="7" fill="#3b3fb0"/>
+              <text x="122" y="109" text-anchor="middle" font-size="10" font-weight="600" fill="#fff">N</text>
+              <!-- core (fixed) -->
+              <line x1="129" y1="105" x2="300" y2="105" stroke="#e6e4dd" stroke-width="1.4"/>
+              <line x1="250" y1="105" x2="300" y2="105" stroke="#3b3fb0" stroke-width="3.6"/>
+              <circle cx="250" cy="105" r="5" fill="#3b3fb0"/>
+              <circle cx="300" cy="105" r="5" fill="#3b3fb0"/>
+              <!-- tails -->
+              <polyline points="300,105 330,90 360,105 390,90 420,105 450,90 480,105" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <polyline points="300,105 330,120 360,135 390,120 420,135 450,120 480,135" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <polyline points="480,105 510,90 540,105 570,90 600,105 630,90 660,105" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <polyline points="480,135 510,150 540,135 570,150 600,135 630,150 660,135" fill="none" stroke="#17171a" stroke-width="1.4"/>
+              <!-- brackets + labels -->
+              <path d="M60,150 L60,162 L150,162 L150,150" fill="none" stroke="#a1a1a8" stroke-width="1"/>
+              <text x="105" y="182" text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">HEAD</text>
+              <text x="105" y="198" text-anchor="middle" font-size="11" fill="#6f6f76">28% N in prior</text>
+              <path d="M240,150 L240,162 L310,162 L310,150" fill="none" stroke="#a1a1a8" stroke-width="1"/>
+              <text x="275" y="182" text-anchor="middle" font-size="12.5" fill="#2c2f8f" font-weight="600">CORE</text>
+              <text x="275" y="198" text-anchor="middle" font-size="11" fill="#6f6f76">fixed by reaction</text>
+              <path d="M420,150 L420,162 L660,162 L660,150" fill="none" stroke="#a1a1a8" stroke-width="1"/>
+              <text x="540" y="182" text-anchor="middle" font-size="12.5" fill="#2c2c31" font-weight="600">TAILS</text>
+              <text x="540" y="198" text-anchor="middle" font-size="11" fill="#6f6f76">94% C in prior</text>
+            </g>
+          </svg>
+          <figcaption>Figure 1. The three functional regions of an ionizable lipid. The head is nitrogen-rich and drives endosomal escape; the tails are almost entirely carbon and set membrane partitioning; the core (highlighted) is the bond topology the synthesis reaction fixes.</figcaption>
+        </figure>
 
-        <p>That determinism is usually treated as a nuisance. We treat it as free information. The core bonds aren't statistical patterns a model should have to learn — they're mechanistic invariants. So we don't let the model touch them. We hold them fixed and let diffusion generate only the parts the chemistry leaves free.</p>
+        <p>Today these lipids are found by combinatorial chemistry — pick building blocks, react them, screen the products — and the machine learning layered on top is <em>discriminative</em>: featurize the enumerated library, train a predictor of transfection potency, rank. That's useful but bounded: you can only rank molecules someone already drew, and the space of synthesizable lipids dwarfs any library. We wanted the model to propose lipids nobody enumerated.</p>
 
-        <blockquote>
-          <p>This is a shift from "generate, then filter for synthesizability" to "constrain, then generate." Synthesizability stops being a scoring function applied after the fact and becomes a property of every sample by construction.</p>
-        </blockquote>
+        <p>The obvious move — take a generic molecular generator and point it at lipids — fails in two ways. It emits chemically invalid graphs (bad valences, unparseable structures), and it emits valid-but-unmakeable ones. Lipid chemistry has its own grammar (tertiary-amine heads, long branched alkyl tails, ester/amide linkers) that looks nothing like the drug-like molecules these models train on. The problem is not the architecture. It's that the constraints of real lipid chemistry have to live <em>inside</em> the generator.</p>
 
-        <h3>How it works</h3>
-        <p>The model is a discrete diffusion process over molecular graphs, with three modifications that turn a generic graph generator into a lipid-aware one.</p>
+        <h3>2 · Background: discrete diffusion on molecular graphs</h3>
+        <p>A molecule is a graph $G = (X, E)$: $n$ atoms with categorical types $X \in \{1,\dots,K\}^n$ (C, N, O, S, …) and bonds with categorical types $E$ (none, single, double, triple, aromatic). Because everything is categorical rather than continuous, we can't add Gaussian noise the way image diffusion does. We use <strong>discrete diffusion</strong> (Austin et al., 2021; Vignac et al., 2023).</p>
 
-        <p><strong>Discrete diffusion, briefly.</strong> A molecule is a graph: atoms with categorical types (C, N, O, S) and bonds with categorical types. Because these are categorical rather than continuous, we use discrete diffusion. The forward process corrupts each atom and bond independently toward a prior distribution; the reverse process trains a neural denoiser to predict the clean types from the corrupted ones. Conditioning is handled with classifier-free guidance, so at sampling time we can dial how hard the model steers toward a target.</p>
+        <p>Take a single categorical variable $x \in \{1,\dots,K\}$ as a one-hot row vector. The forward process corrupts it one step at a time by mixing in a prior $m \in \Delta^{K-1}$ (a distribution over the $K$ categories):</p>
+        <div class="eqn">$$ q(x_t \mid x_{t-1}) = \mathrm{Cat}\!\left(x_t;\, x_{t-1} Q_t\right), \qquad Q_t = (1-\beta_t)\,I + \beta_t\,\mathbf{1}\,m^{\top}. $$</div>
+        <p>Here $\beta_t \in [0,1]$ is the noise rate at step $t$. Reading the transition matrix: with probability $1-\beta_t$ the category is left alone, and with probability $\beta_t$ it is resampled from the prior $m$. Because the single-step matrices share this structure, the $t$-step cumulative transition has a closed form,</p>
+        <div class="eqn">$$ \bar Q_t = \bar\alpha_t\, I + (1-\bar\alpha_t)\,\mathbf{1}\,m^{\top}, \qquad \bar\alpha_t = \prod_{s=1}^{t}(1-\beta_s), $$</div>
+        <p>which gives a direct sampling formula — jump straight from the clean value to any timestep without simulating the chain:</p>
+        <div class="eqn">$$ q(x_t = j \mid x_0 = i) = \bar\alpha_t\,\delta_{ij} + (1-\bar\alpha_t)\,m_j. $$</div>
+        <p>As $t \to T$, $\bar\alpha_t \to 0$ and the variable forgets its origin: $q(x_T) \to m$. For a whole graph, atoms and bonds are corrupted <em>independently</em>, so the forward distribution factorizes:</p>
+        <div class="eqn">$$ q(G_t \mid G_{t-1}) = \prod_{i=1}^{n} \mathrm{Cat}\!\left(x_t^{(i)};\, x_{t-1}^{(i)} Q_t^{\text{atom}}\right)\ \prod_{(i,j)\in\mathcal{E}} \mathrm{Cat}\!\left(e_t^{(ij)};\, e_{t-1}^{(ij)} Q_t^{\text{bond}}\right). $$</div>
+        <p>Training a generator means learning the <em>reverse</em> process. A neural denoiser $f_\theta(G_t, t)$ — a graph neural network — looks at the corrupted graph and predicts the clean categorical types of every atom and bond. At sampling time you start from pure noise $G_T \sim m$ and walk backward to $G_0$.</p>
 
-        <p><strong>1. Fixing the core.</strong> We identify the Ugi core bonds by substructure matching and remove them from diffusion entirely. During training they're masked out of the loss — the model is never asked to predict them, so it spends none of its capacity relearning the reaction mechanism. During generation they're restored after every denoising step, not just at the end, so scaffold corruption can't accumulate through the reverse process. The training objective is a cross-entropy over the non-core atoms and bonds only, and we show the scaffold restoration is exact under the factorized forward process. In practice the scaffold determines about 15% of the bonds; diffusion generates the other 85%.</p>
+        <figure class="diagram">
+          <svg viewBox="0 0 720 230" role="img" aria-label="Forward diffusion adds categorical noise to a molecular graph; the reverse denoiser reconstructs it.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- state G0 -->
+              <g transform="translate(60,70)">
+                <line x1="0" y1="0" x2="34" y2="20" stroke="#17171a" stroke-width="1.3"/>
+                <line x1="34" y1="20" x2="68" y2="0" stroke="#17171a" stroke-width="1.3"/>
+                <line x1="34" y1="20" x2="34" y2="56" stroke="#17171a" stroke-width="1.3"/>
+                <circle cx="0" cy="0" r="6" fill="#3b3fb0"/><circle cx="68" cy="0" r="6" fill="#17171a"/>
+                <circle cx="34" cy="20" r="6" fill="#17171a"/><circle cx="34" cy="56" r="6" fill="#3b3fb0"/>
+              </g>
+              <text x="94" y="164" text-anchor="middle" font-size="12" fill="#6f6f76" font-family="'IBM Plex Mono', monospace">t = 0 (clean)</text>
+              <!-- state Gt -->
+              <g transform="translate(320,70)">
+                <line x1="0" y1="0" x2="34" y2="20" stroke="#c9c7c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+                <line x1="34" y1="20" x2="68" y2="0" stroke="#17171a" stroke-width="1.3"/>
+                <line x1="34" y1="20" x2="34" y2="56" stroke="#c9c7c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+                <circle cx="0" cy="0" r="6" fill="#a1a1a8"/><circle cx="68" cy="0" r="6" fill="#17171a"/>
+                <circle cx="34" cy="20" r="6" fill="#3b3fb0"/><circle cx="34" cy="56" r="6" fill="#a1a1a8"/>
+              </g>
+              <text x="354" y="164" text-anchor="middle" font-size="12" fill="#6f6f76" font-family="'IBM Plex Mono', monospace">t (partially noised)</text>
+              <!-- state GT -->
+              <g transform="translate(580,70)">
+                <line x1="0" y1="0" x2="34" y2="20" stroke="#c9c7c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+                <line x1="34" y1="20" x2="68" y2="0" stroke="#c9c7c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+                <line x1="34" y1="20" x2="34" y2="56" stroke="#c9c7c0" stroke-width="1.3" stroke-dasharray="3 3"/>
+                <circle cx="0" cy="0" r="6" fill="#a1a1a8"/><circle cx="68" cy="0" r="6" fill="#a1a1a8"/>
+                <circle cx="34" cy="20" r="6" fill="#a1a1a8"/><circle cx="34" cy="56" r="6" fill="#a1a1a8"/>
+              </g>
+              <text x="614" y="164" text-anchor="middle" font-size="12" fill="#6f6f76" font-family="'IBM Plex Mono', monospace">t = T (prior m)</text>
+              <!-- forward arrow -->
+              <line x1="180" y1="46" x2="560" y2="46" stroke="#6f6f76" stroke-width="1"/>
+              <path d="M560,46 l-8,-4 l0,8 z" fill="#6f6f76"/>
+              <text x="370" y="34" text-anchor="middle" font-size="12" fill="#6f6f76">forward — add categorical noise</text>
+              <!-- reverse arrow -->
+              <line x1="560" y1="196" x2="180" y2="196" stroke="#3b3fb0" stroke-width="1"/>
+              <path d="M180,196 l8,-4 l0,8 z" fill="#3b3fb0"/>
+              <text x="370" y="214" text-anchor="middle" font-size="12" fill="#2c2f8f">reverse — denoise with f(θ)</text>
+            </g>
+          </svg>
+          <figcaption>Figure 2. Discrete graph diffusion. The forward chain independently resamples atom types and bond types toward a prior $m$ until the graph is pure noise; the learned denoiser $f_\theta$ runs the chain backward. Grey marks corrupted variables.</figcaption>
+        </figure>
 
-        <p><strong>2. Region-aware noise.</strong> Ionizable lipids are chemically lopsided: the head is nitrogen-rich, the tails are almost entirely carbon, and the core bridges them. Standard diffusion corrupts every atom toward one global marginal, which forces the denoiser to fight a mismatch between the noise distribution and the real chemistry of each region. Instead we give each functional region its own noise distribution — atoms in the head diffuse toward a nitrogen-enriched marginal (28% nitrogen versus 8% globally), atoms in the tails toward a carbon-dominated one (94% carbon). The math works out cleanly: the region-aware transition and reverse posterior have the same closed form as the standard case with the global marginal swapped for a per-region one, so it adds no computational cost. This piece matters more than it sounds. When we ablate it and use uniform noise, the model produces 8% invalid molecules and starts generating allenes and cumulenes — strings of cumulated double bonds (C=C=C=C=C) that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't prevent that; the noise distribution has to carry the prior that tails are lipophilic chains.</p>
+        <h3>3 · The observation: the reaction fixes part of the molecule</h3>
+        <p>Combinatorial lipid libraries are built from multicomponent reactions. Our proof of concept uses the <strong>Ugi three-component reaction</strong>, which combines an amine, an aldehyde, and an isocyanide in one pot to form a bis-amide product (Ugi et al., 2000). The mechanism is deterministic where it counts: the same three reactant classes always produce the same <em>scaffold topology</em>. Varying the amine tunes the head; varying the aldehyde and isocyanide tunes the tails; the core bonds are formed by the reaction itself and never move.</p>
 
-        <p><strong>3. Property conditioning.</strong> To steer toward activity, we inject a target transfection potency through FiLM layers that modulate the denoiser's intermediate representations, and train with classifier-free guidance (15% conditioning dropout). At sampling time a guidance scale <em>w</em> trades diversity for how aggressively the model chases the target: <em>w</em>=0 is unconditional, <em>w</em>&gt;1 amplifies the conditioning signal.</p>
+        <p>Most generative approaches treat that determinism as something to rediscover from data. We treat it as free information. The Ugi core bonds are not statistical regularities to be learned — they're mechanistic invariants. So we take them out of the generative problem entirely. Formally, we define a scaffold as four things: the number of atoms $n$ (typically 40–49 for these lipids), the bond topology, a region assignment $r:\{1,\dots,n\}\to\{\textsf{HEAD}, \textsf{CORE}, \textsf{TAIL}_1, \textsf{TAIL}_2\}$, and the core bond types. Diffusion then only has to fill in atom types and the non-core bonds.</p>
 
-        <h3>Training on almost no data</h3>
-        <p>The hard practical constraint is that the experimental data is tiny — about 1,100 Ugi-based lipids with measured transfection. You cannot train a graph diffusion model from scratch on 1,100 examples. So we use a three-stage curriculum that walks the model from general chemistry down to lipid activity:</p>
+        <figure class="diagram">
+          <svg viewBox="0 0 720 150" role="img" aria-label="The scaffold fixes about 15 percent of bonds; diffusion generates the other 85 percent.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <text x="0" y="24" font-size="12.5" font-weight="600" fill="#2c2c31">Fixed by scaffold</text>
+              <text x="0" y="42" font-size="11" fill="#6f6f76">atom count · topology · regions · core bonds</text>
+              <text x="720" y="24" font-size="12.5" font-weight="600" fill="#2c2c31" text-anchor="end">Sampled by diffusion</text>
+              <text x="720" y="42" font-size="11" fill="#6f6f76" text-anchor="end">atom types (C/N/O/S) · non-core bonds</text>
+              <!-- stacked bar -->
+              <rect x="0" y="66" width="108" height="34" fill="#3b3fb0"/>
+              <rect x="108" y="66" width="612" height="34" fill="#e6e4dd"/>
+              <text x="54" y="88" text-anchor="middle" font-size="12" font-weight="600" fill="#fff">~15%</text>
+              <text x="414" y="88" text-anchor="middle" font-size="12" font-weight="600" fill="#2c2c31">~85% of bonds generated</text>
+              <text x="0" y="128" font-size="11.5" fill="#6f6f76">Scaffold conditioning turns "generate, then filter for synthesizability" into "constrain, then generate."</text>
+            </g>
+          </svg>
+          <figcaption>Figure 3. The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
+        </figure>
 
-        <div class="tbl-wrap">
-          <table>
-            <caption>Three-stage curriculum. Each stage narrows the distribution.</caption>
-            <thead>
-              <tr><th>Stage</th><th>Data</th><th class="num">Size</th><th>What it learns</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>1 · Pretrain</td><td>ZINC250k</td><td class="num">250K</td><td>General chemical grammar</td></tr>
-              <tr><td>2 · Domain adapt</td><td>AGILE virtual</td><td class="num">12K</td><td>Lipid patterns; region-aware + scaffold conditioning turned on</td></tr>
-              <tr><td>3 · Condition</td><td>AGILE experimental</td><td class="num">1.1K</td><td>Activity, via FiLM + classifier-free guidance</td></tr>
-            </tbody>
-          </table>
+        <h3>4 · Method</h3>
+        <p>Three modifications turn a generic graph-diffusion model into a lipid-aware one: fixing the core, region-aware noise, and property conditioning.</p>
+
+        <h3>4.1 · Fixing the core (scaffold conditioning)</h3>
+        <p>Let $\mathcal{C}\subset\{1,\dots,n\}$ be the set of core atom (and bond) indices. We remove them from diffusion in two matching ways. During <em>training</em>, core positions are masked out of the loss — the denoiser is never asked to predict them, so it spends none of its capacity relearning the reaction mechanism. The objective becomes a cross-entropy over the free positions only:</p>
+        <div class="eqn">$$ \mathcal{L} = \mathbb{E}_{t,\,G_0,\,G_t}\!\left[\ \sum_{i \notin \mathcal{C}} \ell\!\left(f_\theta(G_t, t)_i,\ G_0^{(i)}\right)\right]. $$</div>
+        <p>During <em>generation</em>, core bond entries are overwritten with the ground-truth scaffold after <strong>every</strong> denoising step, not just the last one, so scaffold corruption can't accumulate through the reverse chain. In the paper we show this restoration is exact under the factorized forward process — because atoms and bonds diffuse independently, clamping the core introduces no approximation into the posterior over the rest of the graph.</p>
+
+        <h3>4.2 · Region-aware noise</h3>
+        <p>This is the piece that matters more than it looks. Standard diffusion corrupts every atom toward one global prior $m$. But an ionizable lipid is chemically lopsided — heads are nitrogen-rich, tails are almost pure carbon — so a single global prior forces the denoiser to fight a mismatch between the noise it sees and the data it must reconstruct. Instead we give each region its own transition matrix with its own stationary distribution $m^{(r)}$:</p>
+        <div class="eqn">$$ Q_t^{(r)} = (1-\beta_t)\,I + \beta_t\,\mathbf{1}\,\big(m^{(r)}\big)^{\top}, \qquad r \in \{\textsf{HEAD}, \textsf{CORE}, \textsf{TAIL}\}. $$</div>
+        <p>Head atoms diffuse toward a nitrogen-enriched prior (28% N versus 8% globally); tail atoms toward a carbon-dominated one (94% C). Each edge inherits the region of its source atom. The reverse posterior stays tractable: for an atom in region $r$,</p>
+        <div class="eqn">$$ q\!\left(x_{t-1}=k \mid x_t=j,\, x_0=\ell;\, r\right) \ \propto\ Q_t^{(r)}[k, j]\ \cdot\ \bar Q_{t-1}^{(r)}[\ell, k]. $$</div>
+        <p>This has exactly the same algebraic form as the standard posterior with $m$ replaced by $m^{(r)}$ — same $O(K)$ cost per atom, no new approximation, just a different limiting distribution per region. All regions share one noise schedule $\bar\alpha_t$; only where they converge differs.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 720 210" role="img" aria-label="Nitrogen fraction of the diffusion prior by region: 8 percent global, 28 percent head, near zero tail.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <text x="0" y="18" font-size="12.5" font-weight="600" fill="#2c2c31">Nitrogen content of the noise prior, by region</text>
+              <!-- axis -->
+              <line x1="60" y1="150" x2="660" y2="150" stroke="#a1a1a8" stroke-width="1"/>
+              <line x1="60" y1="50" x2="60" y2="150" stroke="#a1a1a8" stroke-width="1"/>
+              <text x="52" y="54" font-size="10" fill="#6f6f76" text-anchor="end" font-family="'IBM Plex Mono', monospace">30%</text>
+              <text x="52" y="154" font-size="10" fill="#6f6f76" text-anchor="end" font-family="'IBM Plex Mono', monospace">0%</text>
+              <!-- bars: scale 100% -> 100px over range 0..30 => 3.33px per % ; use height = val*3.33 -->
+              <!-- global 8% -->
+              <rect x="120" y="123.3" width="90" height="26.7" fill="#a1a1a8"/>
+              <text x="165" y="116" text-anchor="middle" font-size="12" font-weight="600" fill="#2c2c31" font-family="'IBM Plex Mono', monospace">8%</text>
+              <text x="165" y="170" text-anchor="middle" font-size="12" fill="#2c2c31">global</text>
+              <!-- head 28% -->
+              <rect x="315" y="56.7" width="90" height="93.3" fill="#3b3fb0"/>
+              <text x="360" y="49" text-anchor="middle" font-size="12" font-weight="600" fill="#2c2f8f" font-family="'IBM Plex Mono', monospace">28%</text>
+              <text x="360" y="170" text-anchor="middle" font-size="12" fill="#2c2c31">head</text>
+              <!-- tail ~0 -->
+              <rect x="510" y="144" width="90" height="6" fill="#a1a1a8"/>
+              <text x="555" y="136" text-anchor="middle" font-size="12" font-weight="600" fill="#2c2c31" font-family="'IBM Plex Mono', monospace">~0</text>
+              <text x="555" y="170" text-anchor="middle" font-size="12" fill="#2c2c31">tail</text>
+              <text x="555" y="186" text-anchor="middle" font-size="10.5" fill="#6f6f76">(94% carbon)</text>
+            </g>
+          </svg>
+          <figcaption>Figure 4. Region-specific priors. Heads diffuse toward a nitrogen-rich distribution, tails toward an almost purely carbon one, versus a single 8%-nitrogen global prior. The denoiser inherits the right chemistry for each substructure instead of averaging it away.</figcaption>
+        </figure>
+
+        <p class="note"><strong>Why this earns its place.</strong> Ablate region-aware noise — use a single uniform prior — and the model produces 8% invalid molecules (versus 0% for the full model) and starts generating <em>allenes and cumulenes</em>: strings of cumulated double bonds like C=C=C=C=C that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't stop this. Without a prior that says "tails are lipophilic alkyl chains," the model wanders into implausible chemistry, because the global marginal can't tell a nitrogen-rich head from a carbon tail.</p>
+
+        <h3>4.3 · Property conditioning</h3>
+        <p>To steer toward activity, we inject a target transfection potency $y$ into the denoiser through <strong>FiLM</strong> layers (Perez et al., 2018), which feature-wise scale and shift the intermediate representations, and we train with <strong>classifier-free guidance</strong> (Ho &amp; Salimans, 2021) by dropping the conditioning signal 15% of the time. At sampling, we mix the conditional and unconditional predictions in logit space (empirically more stable than in probability space):</p>
+        <div class="eqn">$$ \hat G_0 \ \leftarrow\ f_\theta(G_t, t, \varnothing)\ +\ w\,\big(f_\theta(G_t, t, y) - f_\theta(G_t, t, \varnothing)\big). $$</div>
+        <p>The guidance scale $w$ interpolates between unconditional sampling ($w=0$) and aggressive steering toward the target ($w &gt; 1$), trading diversity for on-target potency.</p>
+
+        <h3>4.4 · The full sampling loop</h3>
+        <p>Putting it together, generation proceeds in two stages. First, <em>scaffold selection</em>: because these lipids span hundreds of distinct scaffold topologies, we pick one by property-weighted sampling from a library extracted from the training data — scaffolds associated with high-potency molecules are more likely to be drawn. Second, <em>diffusion</em>: run the reverse chain to fill in the free atoms and bonds, applying guidance and restoring the scaffold at each step.</p>
+
+        <div class="eqn">
+        <table>
+          <caption>Algorithm — reaction-constrained diffusion sampling (one target property $y$, guidance scale $w$, steps $T$).</caption>
+          <tbody style="font-family: var(--mono); font-size: 0.86rem;">
+            <tr><td style="white-space:normal;">Sample $G_T$ from the region-aware priors $m^{(r)}$; fix the core bonds $E_T[\mathcal{C}] \leftarrow E_\mathcal{C}$.</td></tr>
+            <tr><td style="white-space:normal;">For $t = T \dots 1$: form the guided prediction $\hat G_0 = f_\theta(G_t,t,\varnothing) + w\,(f_\theta(G_t,t,y) - f_\theta(G_t,t,\varnothing))$.</td></tr>
+            <tr><td style="white-space:normal;">For each region $r$: sample $G_{t-1}^{(r)}$ from the region-specific posterior $q(G_{t-1}^{(r)} \mid G_t^{(r)}, \hat G_0^{(r)}; Q_t^{(r)})$.</td></tr>
+            <tr><td style="white-space:normal;">Restore the scaffold: $E_{t-1}[\mathcal{C}] \leftarrow E_\mathcal{C}$.</td></tr>
+            <tr><td style="white-space:normal;">Return $G_0$ (final step samples $\hat G_0$ multinomially, not argmax, to preserve diversity).</td></tr>
+          </tbody>
+        </table>
         </div>
 
-        <p>Pretraining on a quarter-million drug-like molecules teaches valence and connectivity — what a legal molecule looks like. Domain adaptation on the virtual lipid library introduces the lipid-specific structure. Only the final stage touches the experimental activity data, and only there does the model see the potency labels at all.</p>
+        <h3>5 · Training on almost no data</h3>
+        <p>The binding constraint is data: only about 1,100 Ugi-based lipids have measured transfection. You cannot train a graph-diffusion model from scratch on 1,100 graphs. So we use a three-stage curriculum that walks the model from generic chemistry down to lipid activity, unfreezing capabilities as the distribution narrows.</p>
 
-        <h3>The generator and the oracle are kept apart</h3>
-        <p>This is the design choice I'd most want a skeptical reader to notice, because it's exactly the failure mode I <a href="generating-lipids-not-molecules.html">worried about</a> in the abstract. We evaluate candidates with LANTERN, a graph neural network trained on experimental transfection data (it predicts measured transfection potency with an <em>R²</em> of about 0.7 on held-out lipids). But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1 and 2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to score finished samples after the fact.</p>
+        <figure class="diagram">
+          <svg viewBox="0 0 720 190" role="img" aria-label="Three-stage curriculum: pretrain on 250K drug-like molecules, adapt on 12K virtual lipids, condition on 1.1K measured lipids.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- boxes -->
+              <rect x="10" y="40" width="210" height="96" rx="8" fill="none" stroke="#e6e4dd"/>
+              <rect x="255" y="40" width="210" height="96" rx="8" fill="none" stroke="#e6e4dd"/>
+              <rect x="500" y="40" width="210" height="96" rx="8" fill="#3b3fb012" stroke="#3b3fb0"/>
+              <!-- stage 1 -->
+              <text x="26" y="34" font-size="11" font-family="'IBM Plex Mono', monospace" fill="#6f6f76">STAGE 1 · pretrain</text>
+              <text x="115" y="74" text-anchor="middle" font-size="14" font-weight="600" fill="#17171a">ZINC250k</text>
+              <text x="115" y="96" text-anchor="middle" font-size="12" fill="#2c2f8f" font-family="'IBM Plex Mono', monospace">250K</text>
+              <text x="115" y="120" text-anchor="middle" font-size="11.5" fill="#6f6f76">chemical grammar</text>
+              <!-- stage 2 -->
+              <text x="271" y="34" font-size="11" font-family="'IBM Plex Mono', monospace" fill="#6f6f76">STAGE 2 · adapt</text>
+              <text x="360" y="74" text-anchor="middle" font-size="14" font-weight="600" fill="#17171a">AGILE virtual</text>
+              <text x="360" y="96" text-anchor="middle" font-size="12" fill="#2c2f8f" font-family="'IBM Plex Mono', monospace">12K</text>
+              <text x="360" y="120" text-anchor="middle" font-size="11.5" fill="#6f6f76">region-aware + scaffold</text>
+              <!-- stage 3 -->
+              <text x="516" y="34" font-size="11" font-family="'IBM Plex Mono', monospace" fill="#6f6f76">STAGE 3 · condition</text>
+              <text x="605" y="74" text-anchor="middle" font-size="14" font-weight="600" fill="#17171a">AGILE experimental</text>
+              <text x="605" y="96" text-anchor="middle" font-size="12" fill="#2c2f8f" font-family="'IBM Plex Mono', monospace">1.1K measured</text>
+              <text x="605" y="120" text-anchor="middle" font-size="11.5" fill="#6f6f76">FiLM + guidance</text>
+              <!-- arrows -->
+              <line x1="222" y1="88" x2="253" y2="88" stroke="#6f6f76" stroke-width="1"/>
+              <path d="M253,88 l-8,-4 l0,8 z" fill="#6f6f76"/>
+              <line x1="467" y1="88" x2="498" y2="88" stroke="#6f6f76" stroke-width="1"/>
+              <path d="M498,88 l-8,-4 l0,8 z" fill="#6f6f76"/>
+              <text x="360" y="176" text-anchor="middle" font-size="11.5" fill="#6f6f76">distribution narrows, data shrinks 250K → 12K → 1.1K, only the last stage sees potency labels →</text>
+            </g>
+          </svg>
+          <figcaption>Figure 5. The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
+        </figure>
 
-        <p>The point of that separation is that the generator can't exploit blind spots in the predictor. It proposes molecules from a learned chemical distribution and the predictor grades them; it never gets to climb the predictor's loss surface and find its adversarial holes. It also means the oracle is swappable — a better predictor, or a batch of real wet-lab measurements, can replace LANTERN without retraining the generative model.</p>
+        <h3>6 · The generator and the oracle are kept apart</h3>
+        <p>This is the design choice I'd most want a skeptical reader to notice, because it's exactly the <a href="generating-lipids-not-molecules.html">oracle failure mode</a> I worried about in the abstract. We score candidates with <strong>LANTERN</strong> (Mehradfar et al., 2025), a graph neural network trained on experimental transfection data that predicts measured transfection potency (mTP) with an $R^2 \approx 0.7$ on held-out lipids. But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1–2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to rank finished samples after the fact.</p>
+        <p>The consequence is that the generator can't exploit blind spots in the predictor. It samples from a learned chemical distribution and the predictor grades the output; it never gets to descend the predictor's loss surface and find its adversarial holes. It also makes the oracle swappable — a better predictor, or a batch of real wet-lab measurements, can replace LANTERN without retraining the generative model. Decoupling the two is what keeps the in-silico search honest.</p>
 
-        <h3>Results</h3>
-        <p>We generated 100 molecules targeting a transfection potency of 10, at guidance scale 2.0, and evaluated them.</p>
+        <h3>7 · Results</h3>
+        <p>We generated 100 molecules targeting mTP $=10$ at guidance scale $2.0$ and evaluated them. "Valid" means chemically valid (correct valence, parseable) <em>and</em> containing an intact Ugi scaffold.</p>
 
         <div class="tbl-wrap">
           <table>
-            <caption>Generation summary — 100 samples, target mTP = 10, guidance 2.0.</caption>
-            <thead>
-              <tr><th>Metric</th><th class="num">Value</th></tr>
-            </thead>
+            <caption>Table 1. Generation summary — 100 samples, target mTP = 10, guidance 2.0.</caption>
+            <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
             <tbody>
               <tr><td>Chemically valid</td><td class="num">99%</td></tr>
               <tr><td>Ugi scaffold intact</td><td class="num">100%</td></tr>
@@ -119,14 +307,65 @@
           </table>
         </div>
 
-        <p>Across a sweep of training seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty here means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints undersell how different two lipids are, we also checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95, so they're genuinely structurally distinct from anything in training, not cosmetic edits.</p>
+        <figure class="diagram">
+          <svg viewBox="0 0 720 300" role="img" aria-label="Predicted transfection potency: training mean 4.85, generated mean 5.37, best candidate 10.55, against a target of 10.">
+            <g font-family="'IBM Plex Sans', sans-serif">
+              <!-- axes -->
+              <line x1="70" y1="30" x2="70" y2="250" stroke="#a1a1a8" stroke-width="1"/>
+              <line x1="70" y1="250" x2="690" y2="250" stroke="#a1a1a8" stroke-width="1"/>
+              <!-- y ticks: 0..12, baseY=250, scale=18.33 -->
+              <g font-size="10" fill="#6f6f76" font-family="'IBM Plex Mono', monospace" text-anchor="end">
+                <text x="62" y="254">0</text>
+                <line x1="66" y1="176.7" x2="70" y2="176.7" stroke="#a1a1a8"/><text x="62" y="180.7">4</text>
+                <line x1="66" y1="103.3" x2="70" y2="103.3" stroke="#a1a1a8"/><text x="62" y="107.3">8</text>
+                <line x1="66" y1="30" x2="70" y2="30" stroke="#a1a1a8"/><text x="62" y="34">12</text>
+              </g>
+              <text x="22" y="140" font-size="11" fill="#6f6f76" transform="rotate(-90 22 140)" text-anchor="middle">predicted mTP</text>
+              <!-- target line at 10 -> y=250-183.3=66.7 -->
+              <line x1="70" y1="66.7" x2="690" y2="66.7" stroke="#3b3fb0" stroke-width="1" stroke-dasharray="5 4"/>
+              <text x="686" y="62" text-anchor="end" font-size="10.5" fill="#2c2f8f">target = 10</text>
+              <!-- bars: width 110, centers 160, 380, 600 -->
+              <!-- training mean 4.85 -> h=88.9, y=161.1 -->
+              <rect x="105" y="161.1" width="110" height="88.9" fill="#a1a1a8"/>
+              <text x="160" y="153" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2c2c31" font-family="'IBM Plex Mono', monospace">4.85</text>
+              <text x="160" y="270" text-anchor="middle" font-size="12" fill="#2c2c31">training mean</text>
+              <!-- generated mean 5.37 -> h=98.4, y=151.6 -->
+              <rect x="325" y="151.6" width="110" height="98.4" fill="#6f6f76"/>
+              <text x="380" y="143.6" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2c2c31" font-family="'IBM Plex Mono', monospace">5.37</text>
+              <text x="380" y="270" text-anchor="middle" font-size="12" fill="#2c2c31">generated mean</text>
+              <!-- best 10.55 -> h=193.4, y=56.6 -->
+              <rect x="545" y="56.6" width="110" height="193.4" fill="#3b3fb0"/>
+              <text x="600" y="48.6" text-anchor="middle" font-size="12.5" font-weight="600" fill="#2c2f8f" font-family="'IBM Plex Mono', monospace">10.55</text>
+              <text x="600" y="270" text-anchor="middle" font-size="12" fill="#2c2c31">best candidate</text>
+            </g>
+          </svg>
+          <figcaption>Figure 6. Predicted transfection potency. The best generated candidate (10.55) roughly doubles the training-set mean (4.85) and reaches the target of 10 — in silico, under a predictor with $R^2 \approx 0.7$.</figcaption>
+        </figure>
 
-        <p>Two analyses I find more convincing than the headline numbers. First, a variance decomposition on the training data: scaffold identity explains about 65% of the variance in transfection potency, and within-scaffold chemical variation explains the other 35% — a large space that enumeration samples sparsely, with a median within-scaffold potency range of 6.2 points. Our diffusion process targets exactly that within-scaffold space. Second, the top candidates converge on shared design features despite being novel — the top three all have dibutylamine heads (a minority motif in the training data), the top seven share a TPSA of 71 Å² and two hydrogen-bond donors, and the tails land in the C12–C16 range. A model that had merely memorized would not rediscover a rare-but-good head group and concentrate on it.</p>
+        <p>Across a sweep of seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints understate how different two lipids are, we re-checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95 — structurally distinct, not cosmetic edits.</p>
 
-        <h3>What this doesn't do</h3>
-        <p>The honest limitations, in order of how much they'd keep me up at night. The gains are <em>in silico</em>: everything above is scored by LANTERN at <em>R²</em> ≈ 0.7, and until we make and test these lipids, that's a prediction, not a result. Fixing the Ugi scaffold guarantees synthesizability but caps diversity by construction — the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade, and the principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space, but it is a ceiling. And in vitro transfection is an imperfect proxy for in vivo delivery, which depends on formulation, biodistribution, and immunogenicity that this model doesn't see — the same point the <a href="generating-lipids-not-molecules.html">oracle discussion</a> keeps coming back to.</p>
+        <p>Two analyses I trust more than the headline numbers:</p>
+        <p><strong>Where the potency variance lives.</strong> An ANOVA-style decomposition on the training data shows scaffold identity explains about 65% of the variance in transfection potency, and within-scaffold chemical variation explains the other 35% — a large space that library enumeration samples only sparsely (median within-scaffold potency range of 6.2 points). Our two-stage design maps onto this directly: property-weighted scaffold selection captures the 65%, and diffusion optimizes within the selected scaffold to capture the 35%.</p>
+        <p><strong>Convergent design.</strong> Despite being novel, the top candidates agree with each other. The top three all carry dibutylamine heads — a <em>minority</em> motif in the training data — and the top seven share a topological polar surface area of 71 Å² and two hydrogen-bond donors, with tails in the C12–C16 range. A model that had merely memorized would not rediscover a rare-but-good head group and concentrate on it; converging on shared motifs it wasn't handed is evidence it learned something about structure and activity.</p>
 
-        <p>What's next is the loop that makes any of this real: synthesize the lead candidates, measure them in hepatocyte transfection and mouse biodistribution, and feed the results back as new conditioning data — an active-learning cycle rather than a one-shot generation. Multiple scaffold types to widen the space, and multi-property conditioning on pKa, logP, and clearance so the objective is more than potency. That's the work in progress. But the core claim of the paper is already the useful part: if you constrain a generative model to the chemistry a reaction actually permits, you get novelty and synthesizability at the same time, instead of trading one for the other.</p>
+        <h3>8 · What this doesn't do</h3>
+        <p>The limitations, in order of how much they'd keep me up at night:</p>
+        <p><strong>It's in silico.</strong> Everything above is scored by LANTERN at $R^2 \approx 0.7$. Until these lipids are synthesized and measured, the gains are predictions, not results. We're currently making lead candidates for validation in hepatocyte transfection and mouse biodistribution.</p>
+        <p><strong>Fixing the scaffold caps diversity.</strong> Guaranteeing synthesizability by freezing the Ugi core means the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade. The principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space — but it is a ceiling, not an escape from one.</p>
+        <p><strong>In vitro ≠ in vivo.</strong> Transfection in a dish correlates imperfectly with delivery in an animal, which depends on formulation, biodistribution, and immunogenicity the model never sees — the same point the <a href="generating-lipids-not-molecules.html">oracle discussion</a> keeps returning to.</p>
+        <p>The path forward is the loop that makes any of this real: generate, synthesize the top hits, measure them, and feed the measurements back as new conditioning data — active learning rather than one-shot generation — plus multiple scaffold types and multi-property conditioning on pKa, logP, and clearance so the objective is more than potency. But the core claim already stands: if you constrain a generative model to the chemistry a reaction actually permits, you get novelty and synthesizability at the same time, instead of trading one against the other.</p>
+
+        <h3>References</h3>
+        <p class="note" style="border:0; padding:0;">
+          Austin et al. <em>Structured denoising diffusion models in discrete state-spaces.</em> NeurIPS 2021.<br/>
+          Vignac et al. <em>DiGress: discrete denoising diffusion for graph generation.</em> ICLR 2023.<br/>
+          Ho &amp; Salimans. <em>Classifier-free diffusion guidance.</em> NeurIPS Workshop 2021.<br/>
+          Perez et al. <em>FiLM: visual reasoning with a general conditioning layer.</em> AAAI 2018.<br/>
+          Ugi et al. <em>Multicomponent reactions in organic chemistry.</em> Angew. Chem. Int. Ed., 2000.<br/>
+          Xu et al. <em>AGILE: a deep-learning approach to accelerate LNP development for mRNA delivery.</em> Nature Communications, 2024.<br/>
+          Mehradfar et al. <em>LANTERN: a machine-learning framework for LNP transfection-efficiency prediction.</em> arXiv:2507.03209, 2025.<br/>
+          Maganti, Maganti &amp; Alameh. <em>Synthesis-constrained discrete diffusion for ionizable lipid generation.</em> 2026.
+        </p>
       </div>
     </article>
   </main>

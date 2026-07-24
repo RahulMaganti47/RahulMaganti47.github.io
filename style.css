@@ -297,6 +297,12 @@ section + section { margin-top: clamp(52px, 8vw, 92px); }
 .prose td.num, .prose th.num { font-family: var(--mono); text-align: right;
   font-variant-numeric: tabular-nums; }
 .prose tbody tr:last-child td { border-bottom: 1px solid var(--ink-soft); }
+.prose figure.diagram { background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: var(--r); padding: 20px 20px 6px; margin: 2em 0; }
+.prose figure.diagram svg { width: 100%; height: auto; border: 0; background: none; }
+.prose .eqn { overflow-x: auto; overflow-y: hidden; margin: 1.4em 0; }
+.prose .note { font-size: 0.94rem; color: var(--muted); border-left: 2px solid var(--hairline);
+  padding-left: 16px; margin: 1.6em 0; }
 .backlink { display: inline-block; margin-bottom: 40px; font-family: var(--mono);
   font-size: 0.76rem; color: var(--muted); text-decoration: none; letter-spacing: 0.04em; }
 .backlink:hover { color: var(--accent-ink); }
