@@ -6,17 +6,19 @@
 #
 # Requires TeX Live / MacTeX (latex, dvisvgm) on PATH for the math targets.
 
-# Add a line here for each page that uses math.
-MATH_PAGES = writing/synthesis-constrained-diffusion.html
+# One entry per math page: "served.html:source.html". Render always runs
+# (it's cheap and deterministic), which keeps `make clean-math && make math`
+# from silently skipping regeneration.
+MATH_PAGES = writing/synthesis-constrained-diffusion.html:content/writing/synthesis-constrained-diffusion.html
 
 .PHONY: math serve clean-math
 
-# Render math for all math pages (only rebuilds pages whose source changed).
-math: $(MATH_PAGES)
-
-# Pattern rule: writing/foo.html is built from content/writing/foo.html.
-writing/%.html: content/writing/%.html build/render_math.py
-	python3 build/render_math.py $< $@
+# Render math for all math pages.
+math:
+	@for pair in $(MATH_PAGES); do \
+	  out=$${pair%%:*}; src=$${pair##*:}; \
+	  python3 build/render_math.py $$src $$out; \
+	done
 
 # Serve the site locally for preview.
 serve:

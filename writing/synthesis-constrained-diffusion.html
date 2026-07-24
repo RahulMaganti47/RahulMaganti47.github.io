@@ -86,7 +86,7 @@
               <text x="540" y="198" text-anchor="middle" font-size="11" fill="#6f6f76">94% C in prior</text>
             </g>
           </svg>
-          <figcaption>Figure 1. The three functional regions of an ionizable lipid. The head is nitrogen-rich and drives endosomal escape; the tails are almost entirely carbon and set membrane partitioning; the core (highlighted) is the bond topology the synthesis reaction fixes.</figcaption>
+          <figcaption><b class="fignum">Figure 1.</b> The three functional regions of an ionizable lipid. The head is nitrogen-rich and drives endosomal escape; the tails are almost entirely carbon and set membrane partitioning; the core (highlighted) is the bond topology the synthesis reaction fixes.</figcaption>
         </figure>
 
         <p>Today these lipids are found by combinatorial chemistry — pick building blocks, react them, screen the products — and the machine learning layered on top is <em>discriminative</em>: featurize the enumerated library, train a predictor of transfection potency, rank. That's useful but bounded: you can only rank molecules someone already drew, and the space of synthesizable lipids dwarfs any library. We wanted the model to propose lipids nobody enumerated.</p>
@@ -146,7 +146,7 @@
               <text x="370" y="214" text-anchor="middle" font-size="12" fill="#2c2f8f">reverse — denoise with f(θ)</text>
             </g>
           </svg>
-          <figcaption>Figure 2. Discrete graph diffusion. The forward chain independently resamples atom types and bond types toward a prior <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m13.svg" alt="m" style="height:0.449em;vertical-align:-0.010em"> until the graph is pure noise; the learned denoiser <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m20.svg" alt="f_\theta" style="height:0.905em;vertical-align:-0.203em"> runs the chain backward. Grey marks corrupted variables.</figcaption>
+          <figcaption><b class="fignum">Figure 2.</b> Discrete graph diffusion. The forward chain independently resamples atom types and bond types toward a prior <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m13.svg" alt="m" style="height:0.449em;vertical-align:-0.010em"> until the graph is pure noise; the learned denoiser <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m20.svg" alt="f_\theta" style="height:0.905em;vertical-align:-0.203em"> runs the chain backward. Grey marks corrupted variables.</figcaption>
         </figure>
 
         <h3>3 · The observation: the reaction fixes part of the molecule</h3>
@@ -218,7 +218,7 @@
               <text x="480" y="242" font-size="12" fill="#2c2f8f" text-anchor="middle" font-weight="600">core &#183; bis-amide, fixed by the reaction</text>
             </g>
           </svg>
-          <figcaption>Figure 3. The Ugi three-component reaction. Choosing the amine, aldehyde, and isocyanide sets the head and the two tails, while the reaction mechanism always forms the same bis-amide core (highlighted). Because that core is a fixed invariant, the model only ever generates the head and tails — it never has to learn the scaffold.</figcaption>
+          <figcaption><b class="fignum">Figure 3.</b> The Ugi three-component reaction. Choosing the amine, aldehyde, and isocyanide sets the head and the two tails, while the reaction mechanism always forms the same bis-amide core (highlighted). Because that core is a fixed invariant, the model only ever generates the head and tails — it never has to learn the scaffold.</figcaption>
         </figure>
 
         <p>Most generative approaches treat that determinism as something to rediscover from data. We treat it as free information. The Ugi core bonds are not statistical regularities to be learned — they're mechanistic invariants. So we take them out of the generative problem entirely. Formally, we define a scaffold as four things: the number of atoms <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m3.svg" alt="n" style="height:0.449em;vertical-align:-0.010em"> (typically 40–49 for these lipids), the bond topology, a region assignment <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m21.svg" alt="r:\{1,\dots,n\}\to\{\textsf{HEAD}, \textsf{CORE}, \textsf{TAIL}_1, \textsf{TAIL}_2\}" style="height:0.996em;vertical-align:-0.249em">, and the core bond types. Diffusion then only has to fill in atom types and the non-core bonds.</p>
@@ -238,7 +238,7 @@
               <text x="0" y="128" font-size="11.5" fill="#6f6f76">Scaffold conditioning turns "generate, then filter for synthesizability" into "constrain, then generate."</text>
             </g>
           </svg>
-          <figcaption>Figure 4. The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
+          <figcaption><b class="fignum">Figure 4.</b> The core the reaction determines is roughly 15% of the bonds. Diffusion generates the remaining ~85% — the atom identities and the non-core bonds — while the scaffold guarantees a makeable product.</figcaption>
         </figure>
 
         <h3>4 · Method</h3>
@@ -281,7 +281,7 @@
               <text x="555" y="186" text-anchor="middle" font-size="10.5" fill="#6f6f76">(94% carbon)</text>
             </g>
           </svg>
-          <figcaption>Figure 5. Region-specific priors. Heads diffuse toward a nitrogen-rich distribution, tails toward an almost purely carbon one, versus a single 8%-nitrogen global prior. The denoiser inherits the right chemistry for each substructure instead of averaging it away.</figcaption>
+          <figcaption><b class="fignum">Figure 5.</b> Region-specific priors. Heads diffuse toward a nitrogen-rich distribution, tails toward an almost purely carbon one, versus a single 8%-nitrogen global prior. The denoiser inherits the right chemistry for each substructure instead of averaging it away.</figcaption>
         </figure>
 
         <p class="note"><strong>Why this earns its place.</strong> Ablate region-aware noise — use a single uniform prior — and the model produces 8% invalid molecules (versus 0% for the full model) and starts generating <em>allenes and cumulenes</em>: strings of cumulated double bonds like C=C=C=C=C that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't stop this. Without a prior that says "tails are lipophilic alkyl chains," the model wanders into implausible chemistry, because the global marginal can't tell a nitrogen-rich head from a carbon tail.</p>
@@ -294,17 +294,20 @@
         <h3>4.4 · The full sampling loop</h3>
         <p>Putting it together, generation proceeds in two stages. First, <em>scaffold selection</em>: because these lipids span hundreds of distinct scaffold topologies, we pick one by property-weighted sampling from a library extracted from the training data — scaffolds associated with high-potency molecules are more likely to be drawn. Second, <em>diffusion</em>: run the reverse chain to fill in the free atoms and bonds, applying guidance and restoring the scaffold at each step.</p>
 
-        <div class="eqn">
-        <table>
-          <caption>Algorithm — reaction-constrained diffusion sampling (one target property <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m27.svg" alt="y" style="height:0.643em;vertical-align:-0.203em">, guidance scale <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m28.svg" alt="w" style="height:0.449em;vertical-align:-0.010em">, steps <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m31.svg" alt="T" style="height:0.675em;vertical-align:-0.000em">).</caption>
-          <tbody style="font-family: var(--mono); font-size: 0.86rem;">
-            <tr><td style="white-space:normal;">Sample <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m32.svg" alt="G_T" style="height:0.851em;vertical-align:-0.149em"> from the region-aware priors <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m23.svg" alt="m^{(r)}" style="height:0.870em;vertical-align:-0.010em">; fix the core bonds <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m33.svg" alt="E_T[\mathcal{C}] \leftarrow E_\mathcal{C}" style="height:0.996em;vertical-align:-0.249em">.</td></tr>
-            <tr><td style="white-space:normal;">For <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m34.svg" alt="t = T \dots 1" style="height:0.685em;vertical-align:-0.010em">: form the guided prediction <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m35.svg" alt="\hat G_0 = f_\theta(G_t,t,\varnothing) + w\,(f_\theta(G_t,t,y) - f_\theta(G_t,t,\varnothing))" style="height:1.193em;vertical-align:-0.250em">.</td></tr>
-            <tr><td style="white-space:normal;">For each region <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m24.svg" alt="r" style="height:0.449em;vertical-align:-0.010em">: sample <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m36.svg" alt="G_{t-1}^{(r)}" style="height:1.258em;vertical-align:-0.251em"> from the region-specific posterior <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m37.svg" alt="q(G_{t-1}^{(r)} \mid G_t^{(r)}, \hat G_0^{(r)}; Q_t^{(r)})" style="height:1.266em;vertical-align:-0.258em">.</td></tr>
-            <tr><td style="white-space:normal;">Restore the scaffold: <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m38.svg" alt="E_{t-1}[\mathcal{C}] \leftarrow E_\mathcal{C}" style="height:0.996em;vertical-align:-0.249em">.</td></tr>
-            <tr><td style="white-space:normal;">Return <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m19.svg" alt="G_0" style="height:0.865em;vertical-align:-0.163em"> (final step samples <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m39.svg" alt="\hat G_0" style="height:1.107em;vertical-align:-0.163em"> multinomially, not argmax, to preserve diversity).</td></tr>
-          </tbody>
-        </table>
+        <div class="algo">
+          <p class="algo__title">Algorithm 1 — Reaction-constrained diffusion sampling</p>
+          <p class="algo__io"><span>input</span> target property <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m27.svg" alt="y" style="height:0.643em;vertical-align:-0.203em">, guidance scale <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m28.svg" alt="w" style="height:0.449em;vertical-align:-0.010em">, diffusion steps <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m31.svg" alt="T" style="height:0.675em;vertical-align:-0.000em"></p>
+          <ol class="algo__steps">
+            <li>Initialize <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m32.svg" alt="G_T" style="height:0.851em;vertical-align:-0.149em"> from the region-aware priors <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m23.svg" alt="m^{(r)}" style="height:0.870em;vertical-align:-0.010em">, and fix the core bonds <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m33.svg" alt="E_T[\mathcal{C}] \leftarrow E_\mathcal{C}" style="height:0.996em;vertical-align:-0.249em">.</li>
+            <li>For <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m34.svg" alt="t = T, \dots, 1" style="height:0.868em;vertical-align:-0.192em">:
+              <ol>
+                <li>Form the guided prediction <img class="matheq matheq--display" src="../assets/math/synthesis-constrained-diffusion-d8.svg" alt="\hat G_0 = f_\theta(G_t,t,\varnothing) + w\,\big(f_\theta(G_t,t,y) - f_\theta(G_t,t,\varnothing)\big)" style="height:1.291em"></li>
+                <li>For each region <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m24.svg" alt="r" style="height:0.449em;vertical-align:-0.010em">, sample from the region-specific posterior <img class="matheq matheq--display" src="../assets/math/synthesis-constrained-diffusion-d9.svg" alt="G_{t-1}^{(r)} \sim q\big(G_{t-1}^{(r)} \mid G_t^{(r)},\, \hat G_0^{(r)};\, Q_t^{(r)}\big)" style="height:1.355em"></li>
+                <li>Restore the scaffold, <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m35.svg" alt="E_{t-1}[\mathcal{C}] \leftarrow E_\mathcal{C}" style="height:0.996em;vertical-align:-0.249em">.</li>
+              </ol>
+            </li>
+            <li>Return <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m19.svg" alt="G_0" style="height:0.865em;vertical-align:-0.163em">. The final step samples <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m36.svg" alt="\hat G_0" style="height:1.107em;vertical-align:-0.163em"> multinomially (not argmax) to preserve diversity.</li>
+          </ol>
         </div>
 
         <h3>5 · Training on almost no data</h3>
@@ -340,15 +343,15 @@
               <text x="360" y="176" text-anchor="middle" font-size="11.5" fill="#6f6f76">distribution narrows, data shrinks 250K → 12K → 1.1K, only the last stage sees potency labels →</text>
             </g>
           </svg>
-          <figcaption>Figure 6. The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
+          <figcaption><b class="fignum">Figure 6.</b> The three-stage curriculum. Pretraining teaches valence and connectivity; domain adaptation introduces lipid structure with region-aware noise and scaffold conditioning switched on; only the final property-conditioning stage touches the experimental activity labels.</figcaption>
         </figure>
 
         <h3>6 · The generator and the oracle are kept apart</h3>
-        <p>This is the design choice I'd most want a skeptical reader to notice, because it guards against the most common failure mode in model-guided design: a generator that learns to exploit the blind spots of its own scoring function. We score candidates with <strong>LANTERN</strong> (Mehradfar et al., 2025), a graph neural network trained on experimental transfection data that predicts measured transfection potency (mTP) with an <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m40.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em"> on held-out lipids. But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1–2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to rank finished samples after the fact.</p>
+        <p>This is the design choice I'd most want a skeptical reader to notice, because it guards against the most common failure mode in model-guided design: a generator that learns to exploit the blind spots of its own scoring function. We score candidates with <strong>LANTERN</strong> (Mehradfar et al., 2025), a graph neural network trained on experimental transfection data that predicts measured transfection potency (mTP) with an <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m37.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em"> on held-out lipids. But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1–2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to rank finished samples after the fact.</p>
         <p>The consequence is that the generator can't exploit blind spots in the predictor. It samples from a learned chemical distribution and the predictor grades the output; it never gets to descend the predictor's loss surface and find its adversarial holes. It also makes the oracle swappable — a better predictor, or a batch of real wet-lab measurements, can replace LANTERN without retraining the generative model. Decoupling the two is what keeps the in-silico search honest.</p>
 
         <h3>7 · Results</h3>
-        <p>We generated 100 molecules targeting mTP <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m41.svg" alt="=10" style="height:0.683em;vertical-align:-0.021em"> at guidance scale <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m42.svg" alt="2.0" style="height:0.683em;vertical-align:-0.021em"> and evaluated them. "Valid" means chemically valid (correct valence, parseable) <em>and</em> containing an intact Ugi scaffold.</p>
+        <p>We generated 100 molecules targeting mTP <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m38.svg" alt="=10" style="height:0.683em;vertical-align:-0.021em"> at guidance scale <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m39.svg" alt="2.0" style="height:0.683em;vertical-align:-0.021em"> and evaluated them. "Valid" means chemically valid (correct valence, parseable) <em>and</em> containing an intact Ugi scaffold.</p>
 
         <div class="tbl-wrap">
           <table>
@@ -398,7 +401,7 @@
               <text x="600" y="270" text-anchor="middle" font-size="12" fill="#2c2c31">best candidate</text>
             </g>
           </svg>
-          <figcaption>Figure 7. Predicted transfection potency. The best generated candidate (10.55) roughly doubles the training-set mean (4.85) and reaches the target of 10 — in silico, under a predictor with <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m40.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em">.</figcaption>
+          <figcaption><b class="fignum">Figure 7.</b> Predicted transfection potency. The best generated candidate (10.55) roughly doubles the training-set mean (4.85) and reaches the target of 10 — in silico, under a predictor with <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m37.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em">.</figcaption>
         </figure>
 
         <p>Across a sweep of seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints understate how different two lipids are, we re-checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95 — structurally distinct, not cosmetic edits.</p>
@@ -409,7 +412,7 @@
 
         <h3>8 · What this doesn't do</h3>
         <p>The limitations, in order of how much they'd keep me up at night:</p>
-        <p><strong>It's in silico.</strong> Everything above is scored by LANTERN at <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m40.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em">. Until these lipids are synthesized and measured, the gains are predictions, not results. We're currently making lead candidates for validation in hepatocyte transfection and mouse biodistribution.</p>
+        <p><strong>It's in silico.</strong> Everything above is scored by LANTERN at <img class="matheq" src="../assets/math/synthesis-constrained-diffusion-m37.svg" alt="R^2 \approx 0.7" style="height:0.824em;vertical-align:-0.021em">. Until these lipids are synthesized and measured, the gains are predictions, not results. We're currently making lead candidates for validation in hepatocyte transfection and mouse biodistribution.</p>
         <p><strong>Fixing the scaffold caps diversity.</strong> Guaranteeing synthesizability by freezing the Ugi core means the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade. The principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space — but it is a ceiling, not an escape from one.</p>
         <p><strong>In vitro ≠ in vivo.</strong> Transfection in a dish correlates imperfectly with delivery in an animal, which depends on formulation, biodistribution, and immunogenicity the model never sees. No in-silico oracle escapes that gap; it only narrows it.</p>
         <p>The path forward is the loop that makes any of this real: generate, synthesize the top hits, measure them, and feed the measurements back as new conditioning data — active learning rather than one-shot generation — plus multiple scaffold types and multi-property conditioning on pKa, logP, and clearance so the objective is more than potency. But the core claim already stands: if you constrain a generative model to the chemistry a reaction actually permits, you get novelty and synthesizability at the same time, instead of trading one against the other.</p>
