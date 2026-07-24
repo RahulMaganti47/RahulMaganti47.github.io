@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <rect width="240" height="180" fill="#f1f0ea"/>
+  <!-- ghost variant (suggests generated alternatives) -->
+  <g transform="translate(8,-9)" opacity="0.16">
+    <circle cx="48" cy="90" r="8" fill="none" stroke="#3b3fb0" stroke-width="1"/>
+    <polyline points="56,86 74,78 92,84 110,74 128,80 146,70 164,76" fill="none" stroke="#17171a" stroke-width="1"/>
+    <polyline points="56,94 74,102 92,96 110,106 128,100 146,110 164,104" fill="none" stroke="#17171a" stroke-width="1"/>
+  </g>
+  <!-- main lipid graph -->
+  <g>
+    <circle cx="48" cy="90" r="8" fill="none" stroke="#3b3fb0" stroke-width="1" opacity="0.7"/>
+    <circle cx="48" cy="90" r="2.4" fill="#3b3fb0"/>
+    <polyline points="56,86 74,78 92,84 110,74 128,80 146,70 164,76" fill="none" stroke="#17171a" stroke-width="1" opacity="0.7"/>
+    <polyline points="56,94 74,102 92,96 110,106 128,100 146,110 164,104" fill="none" stroke="#17171a" stroke-width="1" opacity="0.7"/>
+    <g fill="#3b3fb0">
+      <circle cx="74" cy="78" r="2.4"/><circle cx="92" cy="84" r="2.4"/><circle cx="110" cy="74" r="2.4"/><circle cx="128" cy="80" r="2.4"/><circle cx="146" cy="70" r="2.4"/><circle cx="164" cy="76" r="2.4"/>
+      <circle cx="74" cy="102" r="2.4"/><circle cx="92" cy="96" r="2.4"/><circle cx="110" cy="106" r="2.4"/><circle cx="128" cy="100" r="2.4"/><circle cx="146" cy="110" r="2.4"/><circle cx="164" cy="104" r="2.4"/>
+    </g>
+  </g>
+</svg>

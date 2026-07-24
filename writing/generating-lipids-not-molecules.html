@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Generating lipids, not molecules — Rahul Maganti</title>
+  <meta name="description" content="The obvious next step in AI for drug delivery is generative design of ionizable lipids. It's harder than it sounds — because the thing you're designing isn't a molecule, it's a particle you haven't made yet." />
+  <link rel="icon" href="../assets/portrait.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Generating lipids, not molecules" />
+  <meta property="og:description" content="Generative design of ionizable lipids is harder than it sounds — because the thing you're designing isn't a molecule, it's a particle you haven't made yet." />
+  <meta property="og:type" content="article" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav__inner">
+      <a class="nav__brand" href="../index.html">Rahul&nbsp;Maganti<span class="dot">.</span></a>
+      <div class="nav__links">
+        <a href="../index.html">About</a>
+        <a href="../index.html#papers">Papers</a>
+        <a href="index.html" aria-current="page">Writing</a>
+        <span class="nav__sep"></span>
+        <a class="social" href="mailto:you@example.com">Email</a>
+        <a class="social ext" href="https://koshasciences.com">Kosha Sciences</a>
+        <a class="social" href="https://x.com/">X</a>
+        <a class="social" href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+        <a class="social" href="https://scholar.google.com/">Scholar</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main" class="wrap">
+    <article class="article reveal">
+      <a class="backlink" href="index.html">Writing</a>
+      <p class="article__meta">Jul 2026 · Rahul Maganti</p>
+      <h1 class="article__title">Generating lipids, not molecules</h1>
+      <p class="article__dek">The obvious next step in AI for drug delivery is generative design of ionizable lipids. It's harder than it sounds — because the thing you're designing isn't a molecule, it's a particle you haven't made yet.</p>
+
+      <div class="prose">
+        <p>If you believe delivery is the bottleneck in genetic medicine — <a href="why-delivery-is-the-frontier.html">I do</a> — the obvious next question is whether generative models can design the molecule at the center of it. The ionizable lipid is the part of a lipid nanoparticle that actually carries the payload into the cell, and it's still discovered mostly the old way: take a human-drawn library, vary it, screen it. So the instinct to point a generative model at it is right. It's also more subtle than it looks.</p>
+
+        <p>Start with what most "AI for LNPs" work actually does today. Almost all of it is predictive or library-bound: train a model to rank a fixed set of candidates somebody already drew. That's useful, but it answers a smaller question. Generation asks a different one — not "which of these is best?" but "which new lipid should we make?" The moment you ask that, the search space stops being a list and becomes open-ended, and every weakness in how you posed the problem shows up in what the model draws.</p>
+
+        <h3>The molecule isn't the unit</h3>
+        <p>Here's the mistake that sinks the naive version. You take a generative model trained on drug-like molecules, aim it at lipids, and let it propose structures. What comes back is usually two kinds of useless: things you can't synthesize, and things that look fine on paper but were never judged as what they actually are. An ionizable lipid isn't a small-molecule drug that works by binding a target. It's a flexible amphiphile that does its job only after it self-assembles — with helper lipids, cholesterol, PEG-lipid, and the nucleic-acid cargo — into a nanoparticle whose size, charge, and behavior depend on the mixing process that made it. The unit of design is the formulated particle, not the lipid drawn in isolation. Optimize the molecule and you've optimized a coordinate, not the thing.</p>
+
+        <p>So generative lipid design has to be lipid-centered but LNP-aware. Concretely, five things have to be specified together or the whole thing leaks: the chemical object you generate, the data and objectives that guide it, the synthesis routes that make it real, the formulation context it assembles in, and the particle and biological readouts that decide whether it worked. Drop any one and you get a beautiful candidate that dies on contact with a wet lab.</p>
+
+        <h3>Makeable, or it doesn't count</h3>
+        <p>The first constraint is synthesis. A generator that proposes structures nobody can make isn't proposing anything; it's producing rejections. The reactions you can actually run — the building blocks, the couplings — are what define the space worth exploring, so they belong inside the model, not in a filter bolted on afterward. This is most of why generic molecular generators disappoint on lipids: they were never told what "makeable" means here. Constraining generation to real synthetic routes from the start is the difference between a list of ideas and a list of experiments. It's the problem our own work on synthesis-constrained diffusion for ionizable lipids goes after.</p>
+
+        <h3>What do you score against?</h3>
+        <p>Then the harder part: the oracle. It's tempting to collapse it to one number — potency — and let the model climb it. That reproduces the exact failure I've <a href="why-delivery-is-the-frontier.html">written about before</a>. Potency, tissue selectivity, tolerability, biodegradation, formulation compatibility, cargo dependence: these are separate, sometimes opposing objectives, and the ones that decide whether a lipid becomes a drug are usually not the one that's easiest to measure. Worse, the labels aren't clean. The same lipid behaves differently at a different dose, route, cargo, or formulation, so a delivery measurement isn't a property of the molecule — it's a property of the molecule in a context. A model trained on lipid structure alone is conditioning on a fraction of the causes, and it will be confidently wrong the moment you leave the distribution it saw.</p>
+
+        <p>The data makes this concrete. What can a generator or an oracle actually learn from? Lipid structures tied to routes, formulations, cargo, particle characterization, and assay protocols — and almost none of that exists publicly in a usable form. Negative results, the formulations that didn't work, are the most informative and the least reported. And related lipids share scaffolds, so a careless train-test split leaks: the model looks brilliant because the test lipid is a cousin of one it trained on. Fix the splits honestly and a lot of reported performance evaporates.</p>
+
+        <h3>How you'd know it's working</h3>
+        <p>All of this changes what a benchmark should measure. Molecule-level validity and novelty — is it a legal structure, is it new — are table stakes and mostly beside the point. The benchmark that matters tracks the whole funnel: how many structures were generated, how many survived filtering, how many had a real synthesis route, how many were actually made, formulated, characterized, and tested — and how many of those worked. Report the negative results. Report nearest-neighbor similarity to the training lipids, so it's clear whether the model invented something or just interpolated. And the validation that counts is prospective: make the lipid the model proposed and test it, not re-rank a held-out set.</p>
+
+        <p>The through-line is that the interesting work here isn't a bigger model. It's specifying the problem so the output survives reality — makeable chemistry, physical priors, context-aware oracles, honest benchmarks. Generative AI will earn its place in delivery when it's constrained by what a lab can build and what a body will tolerate, and not before. That's the version worth building.</p>
+      </div>
+    </article>
+  </main>
+
+  <footer class="wrap foot">
+    <div class="foot__links">
+      <a href="mailto:you@example.com">Email</a>
+      <a href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+      <a href="https://x.com/">X</a>
+      <a href="https://scholar.google.com/">Scholar</a>
+    </div>
+    <small>© 2026 Rahul Maganti</small>
+  </footer>
+</body>
+</html>
