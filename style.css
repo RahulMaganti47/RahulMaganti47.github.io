@@ -281,6 +281,22 @@ section + section { margin-top: clamp(52px, 8vw, 92px); }
   margin: 1.6em 0; padding: 4px 0 4px 22px; border-left: 2px solid var(--accent);
   font-style: italic; color: var(--ink); }
 .article .prose blockquote p { font-size: 1.24rem; }
+.prose figure { margin: 2em 0; }
+.prose figure img { width: 100%; border: 1px solid var(--hairline); border-radius: var(--r);
+  background: var(--surface); }
+.prose figcaption { font-family: var(--mono); font-size: 0.76rem; color: var(--muted);
+  letter-spacing: 0.02em; margin-top: 10px; line-height: 1.5; }
+.prose .tbl-wrap { overflow-x: auto; margin: 1.9em 0; }
+.prose table { width: 100%; border-collapse: collapse; font-family: var(--sans);
+  font-size: 0.92rem; }
+.prose caption { font-family: var(--mono); font-size: 0.74rem; color: var(--muted);
+  text-align: left; letter-spacing: 0.02em; margin-bottom: 12px; caption-side: top; }
+.prose th, .prose td { text-align: left; padding: 8px 16px 8px 0;
+  border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.prose thead th { border-bottom: 1px solid var(--ink-soft); font-weight: 600; }
+.prose td.num, .prose th.num { font-family: var(--mono); text-align: right;
+  font-variant-numeric: tabular-nums; }
+.prose tbody tr:last-child td { border-bottom: 1px solid var(--ink-soft); }
 .backlink { display: inline-block; margin-bottom: 40px; font-family: var(--mono);
   font-size: 0.76rem; color: var(--muted); text-decoration: none; letter-spacing: 0.04em; }
 .backlink:hover { color: var(--accent-ink); }

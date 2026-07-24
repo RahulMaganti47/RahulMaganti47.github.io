@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Constrain, then generate — Rahul Maganti</title>
+  <meta name="description" content="A technical walkthrough of our paper on synthesis-constrained discrete diffusion for ionizable lipids: fixing the reaction scaffold during diffusion so every generated lipid is synthesizable by construction." />
+  <link rel="icon" href="../assets/portrait.svg" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Constrain, then generate: a diffusion model for ionizable lipids" />
+  <meta property="og:description" content="Fixing the Ugi reaction scaffold throughout discrete diffusion so every generated ionizable lipid is synthesizable by construction — a walkthrough of our GEM 2026 paper." />
+  <meta property="og:type" content="article" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav__inner">
+      <a class="nav__brand" href="../index.html">Rahul&nbsp;Maganti<span class="dot">.</span></a>
+      <div class="nav__links">
+        <a href="../index.html">About</a>
+        <a href="../index.html#papers">Papers</a>
+        <a href="index.html" aria-current="page">Writing</a>
+        <span class="nav__sep"></span>
+        <a class="social" href="mailto:you@example.com">Email</a>
+        <a class="social ext" href="https://koshasciences.com">Kosha Sciences</a>
+        <a class="social" href="https://x.com/">X</a>
+        <a class="social" href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+        <a class="social" href="https://scholar.google.com/">Scholar</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main" class="wrap">
+    <article class="article reveal">
+      <a class="backlink" href="index.html">Writing</a>
+      <p class="article__meta">Jul 2026 · Rahul Maganti</p>
+      <h1 class="article__title">Constrain, then generate: a diffusion model for ionizable lipids</h1>
+      <p class="article__dek">A walkthrough of our paper on synthesis-constrained discrete diffusion — how we fix the reaction scaffold throughout the diffusion process so every ionizable lipid the model draws can actually be made.</p>
+
+      <div class="prose">
+        <p>I've argued twice now that <a href="why-delivery-is-the-frontier.html">delivery is the real bottleneck</a> in genetic medicine and that <a href="generating-lipids-not-molecules.html">generating lipids is harder than pointing a model at them</a>. This post is the concrete version of the second argument: what we actually built. It's a walkthrough of <em>Synthesis-Constrained Discrete Diffusion for Ionizable Lipid Generation</em> (with Rohin Maganti and Mohamad-Gabriel Alameh), and it's meant to be read as the method, not the marketing.</p>
+
+        <p>The one-line version: instead of generating a lipid and then hoping it's synthesizable, we fix the part of the molecule that a real reaction determines, and let a diffusion model fill in the rest. Every sample is makeable by construction. On our proof of concept, 99% of generated lipids are chemically valid with an intact reaction scaffold, 62% are novel, and the top candidate has roughly twice the predicted transfection potency of the training-set mean.</p>
+
+        <h3>The setup</h3>
+        <p>An ionizable lipid is the component of a lipid nanoparticle that binds the mRNA and gets it into the cell — neutral in the blood, protonated in the acidifying endosome, which is what drives escape. Structurally it's three things: a nitrogen-containing head, lipophilic tails, and a linker region joining them. Today these are discovered by enumerating combinatorial libraries and screening them, and the machine learning that's been bolted onto that is <em>discriminative</em>: train a predictor, rank the library. Ranking is bounded by whatever someone already drew. We wanted a model that proposes lipids nobody has enumerated — which means generation, and generation is where the naive approach falls apart.</p>
+
+        <p>Take a generative model trained on drug-like molecules and aim it at lipids, and it produces two failure modes: molecules that are chemically invalid, and molecules that are valid but unsynthesizable. Lipids have their own grammar — tertiary-amine heads, long branched carbon tails, ester and amide linkages — that looks nothing like the drug-like distributions these models are trained on. So the interesting question isn't which architecture; it's how to build the constraints of real lipid chemistry into the generator itself.</p>
+
+        <h3>The key observation</h3>
+        <p>The observation the method rests on is that combinatorial lipid chemistry is <em>deterministic where it matters</em>. Most of these libraries are built from multicomponent reactions — in our proof of concept, the Ugi three-component reaction, which combines an amine, an aldehyde, and an isocyanide in one pot to form a bis-amide product. The reaction mechanism fixes the connectivity of the core: the same three reactants always yield the same scaffold topology. Varying the amine changes the head; varying the aldehyde and isocyanide changes the tails; the core bonds are set by the reaction and never move.</p>
+
+        <p>That determinism is usually treated as a nuisance. We treat it as free information. The core bonds aren't statistical patterns a model should have to learn — they're mechanistic invariants. So we don't let the model touch them. We hold them fixed and let diffusion generate only the parts the chemistry leaves free.</p>
+
+        <blockquote>
+          <p>This is a shift from "generate, then filter for synthesizability" to "constrain, then generate." Synthesizability stops being a scoring function applied after the fact and becomes a property of every sample by construction.</p>
+        </blockquote>
+
+        <h3>How it works</h3>
+        <p>The model is a discrete diffusion process over molecular graphs, with three modifications that turn a generic graph generator into a lipid-aware one.</p>
+
+        <p><strong>Discrete diffusion, briefly.</strong> A molecule is a graph: atoms with categorical types (C, N, O, S) and bonds with categorical types. Because these are categorical rather than continuous, we use discrete diffusion. The forward process corrupts each atom and bond independently toward a prior distribution; the reverse process trains a neural denoiser to predict the clean types from the corrupted ones. Conditioning is handled with classifier-free guidance, so at sampling time we can dial how hard the model steers toward a target.</p>
+
+        <p><strong>1. Fixing the core.</strong> We identify the Ugi core bonds by substructure matching and remove them from diffusion entirely. During training they're masked out of the loss — the model is never asked to predict them, so it spends none of its capacity relearning the reaction mechanism. During generation they're restored after every denoising step, not just at the end, so scaffold corruption can't accumulate through the reverse process. The training objective is a cross-entropy over the non-core atoms and bonds only, and we show the scaffold restoration is exact under the factorized forward process. In practice the scaffold determines about 15% of the bonds; diffusion generates the other 85%.</p>
+
+        <p><strong>2. Region-aware noise.</strong> Ionizable lipids are chemically lopsided: the head is nitrogen-rich, the tails are almost entirely carbon, and the core bridges them. Standard diffusion corrupts every atom toward one global marginal, which forces the denoiser to fight a mismatch between the noise distribution and the real chemistry of each region. Instead we give each functional region its own noise distribution — atoms in the head diffuse toward a nitrogen-enriched marginal (28% nitrogen versus 8% globally), atoms in the tails toward a carbon-dominated one (94% carbon). The math works out cleanly: the region-aware transition and reverse posterior have the same closed form as the standard case with the global marginal swapped for a per-region one, so it adds no computational cost. This piece matters more than it sounds. When we ablate it and use uniform noise, the model produces 8% invalid molecules and starts generating allenes and cumulenes — strings of cumulated double bonds (C=C=C=C=C) that are chemically unstable and appear nowhere in the training data. Scaffold conditioning alone doesn't prevent that; the noise distribution has to carry the prior that tails are lipophilic chains.</p>
+
+        <p><strong>3. Property conditioning.</strong> To steer toward activity, we inject a target transfection potency through FiLM layers that modulate the denoiser's intermediate representations, and train with classifier-free guidance (15% conditioning dropout). At sampling time a guidance scale <em>w</em> trades diversity for how aggressively the model chases the target: <em>w</em>=0 is unconditional, <em>w</em>&gt;1 amplifies the conditioning signal.</p>
+
+        <h3>Training on almost no data</h3>
+        <p>The hard practical constraint is that the experimental data is tiny — about 1,100 Ugi-based lipids with measured transfection. You cannot train a graph diffusion model from scratch on 1,100 examples. So we use a three-stage curriculum that walks the model from general chemistry down to lipid activity:</p>
+
+        <div class="tbl-wrap">
+          <table>
+            <caption>Three-stage curriculum. Each stage narrows the distribution.</caption>
+            <thead>
+              <tr><th>Stage</th><th>Data</th><th class="num">Size</th><th>What it learns</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1 · Pretrain</td><td>ZINC250k</td><td class="num">250K</td><td>General chemical grammar</td></tr>
+              <tr><td>2 · Domain adapt</td><td>AGILE virtual</td><td class="num">12K</td><td>Lipid patterns; region-aware + scaffold conditioning turned on</td></tr>
+              <tr><td>3 · Condition</td><td>AGILE experimental</td><td class="num">1.1K</td><td>Activity, via FiLM + classifier-free guidance</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Pretraining on a quarter-million drug-like molecules teaches valence and connectivity — what a legal molecule looks like. Domain adaptation on the virtual lipid library introduces the lipid-specific structure. Only the final stage touches the experimental activity data, and only there does the model see the potency labels at all.</p>
+
+        <h3>The generator and the oracle are kept apart</h3>
+        <p>This is the design choice I'd most want a skeptical reader to notice, because it's exactly the failure mode I <a href="generating-lipids-not-molecules.html">worried about</a> in the abstract. We evaluate candidates with LANTERN, a graph neural network trained on experimental transfection data (it predicts measured transfection potency with an <em>R²</em> of about 0.7 on held-out lipids). But the diffusion model does not optimize against LANTERN. It learns the distribution of structures in stages 1 and 2 with no property labels at all; LANTERN-corrected potency enters only as a conditioning target in stage 3, and at generation time LANTERN is used purely to score finished samples after the fact.</p>
+
+        <p>The point of that separation is that the generator can't exploit blind spots in the predictor. It proposes molecules from a learned chemical distribution and the predictor grades them; it never gets to climb the predictor's loss surface and find its adversarial holes. It also means the oracle is swappable — a better predictor, or a batch of real wet-lab measurements, can replace LANTERN without retraining the generative model.</p>
+
+        <h3>Results</h3>
+        <p>We generated 100 molecules targeting a transfection potency of 10, at guidance scale 2.0, and evaluated them.</p>
+
+        <div class="tbl-wrap">
+          <table>
+            <caption>Generation summary — 100 samples, target mTP = 10, guidance 2.0.</caption>
+            <thead>
+              <tr><th>Metric</th><th class="num">Value</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Chemically valid</td><td class="num">99%</td></tr>
+              <tr><td>Ugi scaffold intact</td><td class="num">100%</td></tr>
+              <tr><td>Unique structures</td><td class="num">91%</td></tr>
+              <tr><td>Novel (not in training)</td><td class="num">62%</td></tr>
+              <tr><td>Mean predicted mTP</td><td class="num">5.37</td></tr>
+              <tr><td>Best predicted mTP</td><td class="num">10.55</td></tr>
+              <tr><td>Training mean mTP</td><td class="num">4.85</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Across a sweep of training seeds and guidance scales the picture holds: above 90% validity, 100% scaffold integrity, and novelty between 60% and 73%. Novelty here means absent from both the 12,000-molecule virtual library and the 1,100-molecule experimental set. Because standard Morgan fingerprints undersell how different two lipids are, we also checked with Atom-Pair fingerprints, which capture lipid topology better: 43% of the novel molecules have nearest-neighbor similarity below 0.95, so they're genuinely structurally distinct from anything in training, not cosmetic edits.</p>
+
+        <p>Two analyses I find more convincing than the headline numbers. First, a variance decomposition on the training data: scaffold identity explains about 65% of the variance in transfection potency, and within-scaffold chemical variation explains the other 35% — a large space that enumeration samples sparsely, with a median within-scaffold potency range of 6.2 points. Our diffusion process targets exactly that within-scaffold space. Second, the top candidates converge on shared design features despite being novel — the top three all have dibutylamine heads (a minority motif in the training data), the top seven share a TPSA of 71 Å² and two hydrogen-bond donors, and the tails land in the C12–C16 range. A model that had merely memorized would not rediscover a rare-but-good head group and concentrate on it.</p>
+
+        <h3>What this doesn't do</h3>
+        <p>The honest limitations, in order of how much they'd keep me up at night. The gains are <em>in silico</em>: everything above is scored by LANTERN at <em>R²</em> ≈ 0.7, and until we make and test these lipids, that's a prediction, not a result. Fixing the Ugi scaffold guarantees synthesizability but caps diversity by construction — the model explores within Ugi-accessible space and cannot invent a fundamentally new reaction scaffold. That's a deliberate trade, and the principle extends to other multicomponent reactions (Passerini, Biginelli, Hantzsch), each opening its own region of makeable space, but it is a ceiling. And in vitro transfection is an imperfect proxy for in vivo delivery, which depends on formulation, biodistribution, and immunogenicity that this model doesn't see — the same point the <a href="generating-lipids-not-molecules.html">oracle discussion</a> keeps coming back to.</p>
+
+        <p>What's next is the loop that makes any of this real: synthesize the lead candidates, measure them in hepatocyte transfection and mouse biodistribution, and feed the results back as new conditioning data — an active-learning cycle rather than a one-shot generation. Multiple scaffold types to widen the space, and multi-property conditioning on pKa, logP, and clearance so the objective is more than potency. That's the work in progress. But the core claim of the paper is already the useful part: if you constrain a generative model to the chemistry a reaction actually permits, you get novelty and synthesizability at the same time, instead of trading one for the other.</p>
+      </div>
+    </article>
+  </main>
+
+  <footer class="wrap foot">
+    <div class="foot__links">
+      <a href="mailto:you@example.com">Email</a>
+      <a href="https://www.linkedin.com/in/rahulmaganti/">LinkedIn</a>
+      <a href="https://x.com/">X</a>
+      <a href="https://scholar.google.com/">Scholar</a>
+    </div>
+    <small>© 2026 Rahul Maganti</small>
+  </footer>
+</body>
+</html>

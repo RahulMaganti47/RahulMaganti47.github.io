@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <rect width="240" height="180" fill="#f1f0ea"/>
+  <!-- scattered noise (diffusion) -->
+  <g fill="#3b3fb0" opacity="0.18">
+    <circle cx="40" cy="42" r="1.6"/><circle cx="196" cy="50" r="1.6"/><circle cx="210" cy="120" r="1.6"/>
+    <circle cx="52" cy="140" r="1.6"/><circle cx="30" cy="96" r="1.6"/><circle cx="120" cy="30" r="1.6"/>
+    <circle cx="150" cy="150" r="1.6"/><circle cx="88" cy="34" r="1.6"/><circle cx="182" cy="150" r="1.6"/>
+  </g>
+  <!-- head (dashed, being formed) -->
+  <circle cx="70" cy="90" r="8" fill="none" stroke="#3b3fb0" stroke-width="1" opacity="0.5" stroke-dasharray="3 3"/>
+  <line x1="78" y1="90" x2="104" y2="90" stroke="#17171a" stroke-width="1" opacity="0.4" stroke-dasharray="3 3"/>
+  <!-- fixed core (solid, emphasized) -->
+  <line x1="104" y1="90" x2="128" y2="90" stroke="#3b3fb0" stroke-width="2.4"/>
+  <circle cx="104" cy="90" r="4" fill="#3b3fb0"/>
+  <circle cx="128" cy="90" r="4" fill="#3b3fb0"/>
+  <!-- tails (dashed, generated) -->
+  <polyline points="128,90 146,80 164,86 182,76 200,82" fill="none" stroke="#17171a" stroke-width="1" opacity="0.5" stroke-dasharray="3 3"/>
+  <polyline points="128,90 146,100 164,94 182,104 200,98" fill="none" stroke="#17171a" stroke-width="1" opacity="0.5" stroke-dasharray="3 3"/>
+  <g fill="#3b3fb0" opacity="0.6">
+    <circle cx="146" cy="80" r="2"/><circle cx="164" cy="86" r="2"/><circle cx="182" cy="76" r="2"/><circle cx="200" cy="82" r="2"/>
+    <circle cx="146" cy="100" r="2"/><circle cx="164" cy="94" r="2"/><circle cx="182" cy="104" r="2"/><circle cx="200" cy="98" r="2"/>
+  </g>
+</svg>
