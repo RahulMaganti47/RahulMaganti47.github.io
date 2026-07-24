@@ -303,6 +303,12 @@ section + section { margin-top: clamp(52px, 8vw, 92px); }
 .prose .eqn { overflow-x: auto; overflow-y: hidden; margin: 1.4em 0; }
 .prose .note { font-size: 0.94rem; color: var(--muted); border-left: 2px solid var(--hairline);
   padding-left: 16px; margin: 1.6em 0; }
+/* pre-rendered LaTeX (SVG) */
+.prose .matheq { display: inline-block; border: 0; background: none; margin: 0;
+  max-width: 100%; }
+.prose .matheq--display { display: block; margin: 1.2em auto; }
+.prose .eqn { text-align: center; }
+.prose .eqn table { text-align: left; }
 .backlink { display: inline-block; margin-bottom: 40px; font-family: var(--mono);
   font-size: 0.76rem; color: var(--muted); text-decoration: none; letter-spacing: 0.04em; }
 .backlink:hover { color: var(--accent-ink); }
